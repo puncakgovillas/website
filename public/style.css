@@ -157,3 +157,4 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;
 .login{max-width:380px;margin:60px auto;background:#fff;border:1px solid var(--line);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:12px}
 .login h1{font-size:20px;margin:0}
 .ph img.broken{display:none}
+.srch input{font-size:15px;padding:12px 14px;border-radius:12px;background:#fff}
