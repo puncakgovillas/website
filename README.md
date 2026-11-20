@@ -16,3 +16,8 @@ Setting di Cloudflare Workers:
 Setiap simpan, versi lama dicadangkan ke `backups/` di R2.
 
 Deploy otomatis dari branch `main` lewat Cloudflare Workers Builds.
+
+## Akun admin
+- Pemilik masuk dengan nama bebas + `ADMIN_PASSWORD`.
+- Admin staf dibuat pemilik di Pengaturan → Akun admin (disimpan di R2 `admins.json`, password di-hash PBKDF2).
+- Tiap simpan dicatat di R2 `log/YYYY-MM.json` (siapa, kapan, apa yang berubah) → tab Riwayat (khusus pemilik).

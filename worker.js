@@ -3,8 +3,10 @@ import * as data from './functions/api/data.js';
 import * as login from './functions/api/login.js';
 import * as photo from './functions/api/photo.js';
 import * as photoFile from './functions/photos/[name].js';
+import * as admins from './functions/api/admins.js';
+import * as log from './functions/api/log.js';
 
-const ROUTES = { '/api/data': data, '/api/login': login, '/api/photo': photo };
+const ROUTES = { '/api/data': data, '/api/login': login, '/api/photo': photo, '/api/admins': admins, '/api/log': log };
 
 function pick(mod, method) {
   const name = 'onRequest' + method.charAt(0) + method.slice(1).toLowerCase();
