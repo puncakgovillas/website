@@ -14,3 +14,5 @@ Setting di Cloudflare Workers:
 - Environment variable (secret) `ADMIN_PASSWORD`
 
 Setiap simpan, versi lama dicadangkan ke `backups/` di R2.
+
+Deploy otomatis dari branch `main` lewat Cloudflare Workers Builds.
