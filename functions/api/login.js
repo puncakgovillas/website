@@ -11,7 +11,7 @@ export async function onRequestPost({ request, env }) {
     await new Promise((r) => setTimeout(r, 800)); // perlambat tebak-tebakan password
     return json({ error: 'Nama atau password salah.' }, 401);
   }
-  return json({ token: await makeToken(env, u), name: u.name, role: u.role });
+  return json({ token: await makeToken(env, u), name: u.name, role: u.role, canSeeOwner: !!u.canSeeOwner });
 }
 
 // GET /api/login -> siapa yang lagi login

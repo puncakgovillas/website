@@ -7,6 +7,11 @@ function setData(raw){raw=raw||{};REV=raw.rev||0;var extra={};Object.keys(raw).f
 var TOK='',USER=null;try{TOK=localStorage.getItem('pgvTok')||'';localStorage.removeItem('pgvKey')}catch(e){}
 function setTok(t){TOK=t||'';try{if(TOK)localStorage.setItem('pgvTok',TOK);else localStorage.removeItem('pgvTok')}catch(e){}}
 function isOwner(){return USER&&USER.role==='owner'}
+function canOwner(){return !!(USER&&(USER.role==='owner'||USER.canSeeOwner))}
+var PRIV={},PRIV_DIRTY={};
+function loadPriv(){if(!canOwner()){PRIV={};return Promise.resolve()}return api('GET','/api/private').then(function(r){PRIV=r.villas||{}}).catch(function(){PRIV={}})}
+function waOwner(ph){var n=String(ph||'').replace(/\D/g,'');if(n.charAt(0)==='0')n='62'+n.slice(1);else if(n.charAt(0)==='8')n='62'+n;return 'https://wa.me/'+n}
+function startAdmin(u){USER=u;PRIV_DIRTY={};loadPriv().then(renderAdmin)}
 function api(method,url,body,isFile){var h={};if(TOK)h['authorization']='Bearer '+TOK;if(body&&!isFile)h['content-type']='application/json';if(isFile)h['content-type']=body.type||'image/jpeg';
   return fetch(url,{method:method,headers:h,body:body?(isFile?body:JSON.stringify(body)):undefined,cache:'no-store'}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok){var e=new Error(j.error||('HTTP '+r.status));e.status=r.status;e.body=j;throw e}return j})})}
 var dirty=false;
@@ -129,7 +134,7 @@ function renderAdmin(){
    '<div class="wrap"><div class="tabs">'+[['villa','Villa'],['cal','Tanggal Terisi'],['hs','High Season'],['set','Pengaturan']].concat(isOwner()?[['log','Riwayat']]:[]).map(function(t){return '<button data-tab="'+t[0]+'" class="'+(A.tab===t[0]?'on':'')+'">'+t[1]+'</button>'}).join('')+'</div><div id="pane"></div></div>';
   $$('[data-tab]').forEach(function(b){b.addEventListener('click',function(){A.tab=b.dataset.tab;renderAdmin()})});
   $('#saveBtn').addEventListener('click',save);
-  $('#logout').onclick=function(e){e.preventDefault();if(dirty&&!window.confirm('Ada perubahan belum disimpan. Tetap keluar?'))return;setTok('');USER=null;dirty=false;renderLogin()};
+  $('#logout').onclick=function(e){e.preventDefault();if(dirty&&!window.confirm('Ada perubahan belum disimpan. Tetap keluar?'))return;setTok('');USER=null;PRIV={};PRIV_DIRTY={};dirty=false;renderLogin()};
   var p=$('#pane');
   if(A.tab==='villa')paneVilla(p);else if(A.tab==='cal')paneCal(p);else if(A.tab==='hs')paneHS(p);else if(A.tab==='log'&&isOwner())paneLog(p);else paneSet(p);
 }
@@ -137,7 +142,7 @@ function renderAdmin(){
 function paneVilla(p){
   function rows(){return D.villas.filter(matchQ).map(function(v){
     var gp=goodPhotos(v),th=gp[0]?'<img src="'+gp[0]+'" alt="" loading="lazy">':'<div class="th">'+esc((v.name||'V').charAt(0))+'</div>';
-    return '<div class="vi">'+th+'<div class="inf"><b>'+esc(v.name)+'<span class="badge'+(v.active!==false?' on':'')+'">'+(v.active!==false?'Tampil':'Disembunyikan')+'</span></b><span>'+(v.bedrooms||'-')+' kamar · '+(v.capStd||'-')+'–'+capOf(v)+' orang · WD '+rp(v.priceWeekday)+' · WE '+rp(v.priceWeekend)+(v.priceHigh?' · HS '+rp(v.priceHigh):'')+'</span>'+(v.updatedBy?'<span class="upd">Terakhir diubah <b>'+esc(v.updatedBy)+'</b> · '+fmtTime(v.updatedAt)+'</span>':'')+'</div><div class="act"><button class="btn sm" data-edit="'+v.id+'">Edit</button><button class="btn sm danger" data-del="'+v.id+'">Hapus</button></div></div>';
+    return '<div class="vi">'+th+'<div class="inf"><b>'+esc(v.name)+'<span class="badge'+(v.active!==false?' on':'')+'">'+(v.active!==false?'Tampil':'Disembunyikan')+'</span></b><span>'+(v.bedrooms||'-')+' kamar · '+(v.capStd||'-')+'–'+capOf(v)+' orang · WD '+rp(v.priceWeekday)+' · WE '+rp(v.priceWeekend)+(v.priceHigh?' · HS '+rp(v.priceHigh):'')+'</span>'+(canOwner()&&PRIV[v.id]&&(PRIV[v.id].ownerName||PRIV[v.id].ownerPhone)?'<span class="own">🔒 Pemilik: <b>'+esc(PRIV[v.id].ownerName||'-')+'</b>'+(PRIV[v.id].ownerPhone?' · <a href="'+waOwner(PRIV[v.id].ownerPhone)+'" target="_blank" rel="noopener">'+esc(PRIV[v.id].ownerPhone)+'</a>':'')+'</span>':'')+(v.updatedBy?'<span class="upd">Terakhir diubah <b>'+esc(v.updatedBy)+'</b> · '+fmtTime(v.updatedAt)+'</span>':'')+'</div><div class="act"><button class="btn sm" data-edit="'+v.id+'">Edit</button><button class="btn sm danger" data-del="'+v.id+'">Hapus</button></div></div>';
   }).join('')}
   p.innerHTML='<div class="panel"><div class="row" style="justify-content:space-between;align-items:center"><div><h2>Daftar Villa ('+D.villas.length+')</h2><p class="hint" style="margin:0">Data villa yang tampil ke tamu.</p></div><div class="row"><button class="btn" id="impV">Import Excel</button><button class="btn primary" id="addV">+ Tambah Villa</button></div></div>'+'<div class="srch" style="margin-top:14px"><input id="vq" type="search" placeholder="🔍 Cari nama villa atau lokasi…" value="'+esc(A.q)+'" autocomplete="off"></div>'+'<div class="vl" id="vl" style="margin-top:14px"></div></div>';
   function fill(){var h=rows();$('#vl',p).innerHTML=h||(D.villas.length?'<p class="hint">Nggak ada villa yang cocok.</p>':'<div class="empty"><b>Belum ada villa</b>Klik "Tambah Villa" atau "Import Excel" buat mulai.</div>');bind()}
@@ -157,6 +162,7 @@ function paneVilla(p){
 /* ===== import excel ===== */
 var XLSX_P=null;
 function loadXLSX(){if(window.XLSX)return Promise.resolve(window.XLSX);if(!XLSX_P)XLSX_P=new Promise(function(res,rej){var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=function(){window.XLSX?res(window.XLSX):rej()};sc.onerror=function(){XLSX_P=null;rej()};document.head.appendChild(sc)});return XLSX_P}
+var PCOLS={ownerName:['namapemilik','pemilik','pemilikvilla'],ownerPhone:['nohppemilik','nopemilik','hppemilik','nomorpemilik','wapemilik','nowapemilik','telppemilik'],ownerNote:['catatanpemilik']};
 var COLS={name:['nama','namavilla','villa'],location:['lokasi','alamat','area'],bedrooms:['kamar','jumlahkamar','kamartidur'],bathrooms:['kamarmandi','km'],capStd:['kapasitasnormal','kapasitas','kapasitasstandar'],capMax:['kapasitasmaks','kapasitasmaksimal','kapasitasmax','maks'],priceWeekday:['hargaweekday','weekday'],priceWeekend:['hargaweekend','weekend'],priceHigh:['hargahighseason','highseason','hargahs'],facilities:['fasilitas'],desc:['deskripsi','keterangan'],active:['tampil','aktif']};
 function normKey(k){return String(k).toLowerCase().replace(/[^a-z0-9]/g,'')}
 function cellNum(x){return typeof x==='number'?Math.round(x):num(x)}
@@ -169,6 +175,8 @@ function parseRows(rows){
     ['bedrooms','bathrooms','capStd','capMax','priceWeekday','priceWeekend','priceHigh'].forEach(function(f){if(o[f]!=null)v[f]=cellNum(o[f])});
     if(o.facilities!=null)v.facilities=String(o.facilities).split(/[,;\/\n]+/).map(function(x){return x.trim()}).filter(Boolean);
     if(o.desc!=null)v.desc=String(o.desc).trim();
+    var pr={};Object.keys(PCOLS).forEach(function(f){for(var i=0;i<PCOLS[f].length;i++){var c=PCOLS[f][i];if(m.hasOwnProperty(c)&&String(m[c]).trim()!==''){pr[f]=String(m[c]).trim();break}}});
+    if(Object.keys(pr).length)v._priv=pr;
     if(o.active!=null)v.active=!/^(tidak|no|n|0|false|sembunyi|hide)/i.test(String(o.active).trim());
     out.push(v)});
   return out;
@@ -184,7 +192,8 @@ function importExcel(){
       $('[data-ok]',m).disabled=!parsed.length})
     .catch(function(){$('#xr',m).innerHTML='<p class="err">File nggak bisa dibaca. Coba simpan ulang sebagai .xlsx atau .csv.</p>'})};
   $('[data-ok]',m).onclick=function(){if(!parsed)return;var idx={};D.villas.forEach(function(v){idx[v.name.trim().toLowerCase()]=v});
-    parsed.forEach(function(r){var ex=idx[r.name.toLowerCase()];if(ex){Object.keys(r).forEach(function(k){ex[k]=r[k]})}else{var v=Object.assign({id:uid(),name:'',location:'',bedrooms:0,bathrooms:0,capStd:0,capMax:0,priceWeekday:0,priceWeekend:0,priceHigh:0,facilities:[],desc:'',photos:[],active:true},r);D.villas.push(v);idx[r.name.toLowerCase()]=v}});
+    parsed.forEach(function(r){var pr=r._priv;delete r._priv;var ex=idx[r.name.toLowerCase()];if(ex){Object.keys(r).forEach(function(k){ex[k]=r[k]})}else{var v=Object.assign({id:uid(),name:'',location:'',bedrooms:0,bathrooms:0,capStd:0,capMax:0,priceWeekday:0,priceWeekend:0,priceHigh:0,facilities:[],desc:'',photos:[],active:true},r);D.villas.push(v);idx[r.name.toLowerCase()]=v}
+      if(pr&&canOwner()){var tv=idx[r.name.toLowerCase()],op=PRIV[tv.id]||{},np=Object.assign({ownerName:op.ownerName||'',ownerPhone:op.ownerPhone||'',ownerNote:op.ownerNote||''},pr);PRIV_DIRTY[tv.id]=np;PRIV[tv.id]=Object.assign({},op,np)}});
     D.villas.forEach(function(v){if(v.capMax&&v.capStd&&v.capMax<v.capStd)v.capMax=v.capStd});
     m.remove();markDirty();renderAdmin();toast('Import beres. Jangan lupa klik "Simpan & Publikasikan".',4000)};
 }
@@ -198,6 +207,7 @@ function compress(file){return new Promise(function(res,rej){var url=URL.createO
 function editVilla(id){
   var orig=id?D.villas.find(function(v){return v.id===id}):null;
   var v=orig?JSON.parse(JSON.stringify(orig)):{id:uid(),name:'',location:'',bedrooms:'',bathrooms:'',capStd:'',capMax:'',priceWeekday:'',priceWeekend:'',priceHigh:'',facilities:[],desc:'',photos:[],active:true};
+  var pv=Object.assign({},PRIV[v.id]||{});
   function money(n,k,l,hint){return '<label><span>'+l+(hint?' <span class="opt">'+hint+'</span>':'')+'</span><input data-m="'+k+'" inputmode="numeric" value="'+(n?Number(n).toLocaleString('id-ID'):'')+'" placeholder="0"></label>'}
   var m=modal('<h2>'+(orig?'Edit villa':'Tambah villa')+'</h2><div class="fg">'+
     '<label class="full">Nama villa<input data-k="name" value="'+esc(v.name)+'" placeholder="Villa Arisela"></label>'+
@@ -211,6 +221,7 @@ function editVilla(id){
     '<div class="full"><label style="margin-bottom:6px">Fasilitas</label><div class="pick" id="fac"></div><div class="row" style="margin-top:8px"><label style="flex:1"><input id="facIn" placeholder="Tambah fasilitas lain, lalu Enter"></label><button class="btn sm" id="facAdd" type="button">Tambah</button></div></div>'+
     '<label class="full"><span>Deskripsi singkat <span class="opt">(opsional)</span></span><textarea data-k="desc" rows="3" placeholder="Villa luas dengan kolam renang dan view gunung...">'+esc(v.desc)+'</textarea></label>'+
     '<div class="full"><label style="margin-bottom:6px"><span>Foto <span class="opt">(maks 6, foto pertama jadi cover)</span></span></label><div class="pg" id="pg"></div><input type="file" id="pf" accept="image/*" multiple hidden></div>'+
+    (canOwner()?'<div class="full privbox"><div class="privh">🔒 Kontak pemilik villa <span class="opt">(rahasia, cuma kelihatan di admin, nggak tampil di website)</span></div><div class="fg"><label>Nama pemilik<input id="oN" value="'+esc(pv.ownerName||'')+'" placeholder="Pak Budi"></label><label>No. HP / WA pemilik<input id="oP" inputmode="tel" value="'+esc(pv.ownerPhone||'')+'" placeholder="08xxxxxxxxxx"></label><label class="full">Catatan <span class="opt">(opsional)</span><input id="oC" value="'+esc(pv.ownerNote||'')+'" placeholder="misal: rekening, jam bisa dihubungi"></label></div></div>':'')+
     '<label class="chk full"><input type="checkbox" id="act"'+(v.active!==false?' checked':'')+'> Tampilkan villa ini ke tamu</label>'+
     '</div><div id="er" class="err"></div><div class="mf"><button class="btn" data-x>Batal</button><button class="btn primary" data-ok>Simpan villa</button></div>');
   v.photos=goodPhotos(v);
@@ -238,6 +249,8 @@ function editVilla(id){
     if(v.capMax&&v.capStd&&v.capMax<v.capStd)v.capMax=v.capStd;
     var er=[];if(!v.name)er.push('nama villa');if(!v.capStd&&!v.capMax)er.push('kapasitas');if(!v.priceWeekday&&!v.priceWeekend)er.push('harga');
     if(er.length){$('#er',m).textContent='Isi dulu: '+er.join(', ')+'.';return}
+    if(canOwner()&&$('#oN',m)){var np={ownerName:$('#oN',m).value.trim(),ownerPhone:$('#oP',m).value.trim(),ownerNote:$('#oC',m).value.trim()},op=PRIV[v.id]||{};
+      if(np.ownerName!==(op.ownerName||'')||np.ownerPhone!==(op.ownerPhone||'')||np.ownerNote!==(op.ownerNote||'')){PRIV_DIRTY[v.id]=np;PRIV[v.id]=Object.assign({},op,np)}}
     if(orig){D.villas[D.villas.indexOf(orig)]=v}else D.villas.push(v);
     m.remove();markDirty();renderAdmin();toast('Villa disimpan. Jangan lupa klik "Simpan & Publikasikan".');
   };
@@ -341,7 +354,7 @@ function paneSet(p){
    '<label>Toleransi di atas budget (%)<input data-s="overPct" inputmode="numeric" value="'+esc(s.overPct)+'"></label>'+
    '<label class="chk full"><input type="checkbox" id="so"'+(s.showOver?' checked':'')+'> Tampilkan villa yang sedikit di atas budget</label>'+
    '</div></div><div class="panel"><h2>Penyimpanan foto</h2><p class="hint" id="usage">Mengecek…</p><button class="btn" id="clean">Bersihin foto yang nggak dipakai</button></div>'+
-   (isOwner()?'<div class="panel"><h2>Akun admin</h2><p class="hint">Bikin akun buat tiap admin, biar ketahuan siapa yang upload foto dan ngubah jadwal (lihat tab <b>Riwayat</b>). Kamu sendiri masuk pakai password pemilik (ADMIN_PASSWORD di Cloudflare).</p><div id="adl" class="rl"><p class="hint">Memuat…</p></div><div class="row" style="margin-top:12px"><label>Nama admin<input id="an" placeholder="misal: Rina" autocomplete="off"></label><label>Password<input id="ap" type="text" placeholder="min. 6 karakter" autocomplete="off"></label><button class="btn primary" id="aa">Tambah / ganti password</button></div><div id="ae" class="err"></div></div>':'')+
+   (isOwner()?'<div class="panel"><h2>Akun admin</h2><p class="hint">Bikin akun buat tiap admin, biar ketahuan siapa yang upload foto dan ngubah jadwal (lihat tab <b>Riwayat</b>). Kamu sendiri masuk pakai password pemilik (ADMIN_PASSWORD di Cloudflare).</p><div id="adl" class="rl"><p class="hint">Memuat…</p></div><div class="row" style="margin-top:12px"><label>Nama admin<input id="an" placeholder="misal: Rina" autocomplete="off"></label><label>Password<input id="ap" type="text" placeholder="min. 6 karakter" autocomplete="off"></label><button class="btn primary" id="aa">Tambah / ganti password</button></div><label class="chk" style="margin-top:10px"><input type="checkbox" id="ac"> Boleh lihat kontak pemilik villa</label><div id="ae" class="err"></div></div>':'')+
    '<p class="hint" style="margin:0 2px 18px">Data otomatis dicadangkan tiap kali disimpan.</p>';
   $$('[data-s]',p).forEach(function(i){i.addEventListener('input',function(){var k=i.dataset.s;s[k]=k==='overPct'?num(i.value):i.value;markDirty()});i.addEventListener('change',function(){var k=i.dataset.s;s[k]=k==='overPct'?num(i.value):i.value;markDirty()})});
   $('#so',p).onchange=function(e){s.showOver=e.target.checked;markDirty()};
@@ -361,7 +374,9 @@ function save(){
   if(!dirty){toast('Nggak ada perubahan baru.');return}
   saving=true;if(btn){btn.disabled=true;btn.textContent='Menyimpan…'}
   var t=todayDS();Object.keys(D.booked).forEach(function(k){D.booked[k]=D.booked[k].filter(function(d){return d>=t});if(!D.booked[k].length)delete D.booked[k]});Object.keys(D.synced||{}).forEach(function(k){D.synced[k]=D.synced[k].filter(function(d){return d>=t});if(!D.synced[k].length)delete D.synced[k]});
-  api('PUT','/api/data',{rev:REV,data:D}).then(function(r){REV=r.rev;(r.villas||[]).forEach(function(x){var v=D.villas.find(function(y){return y.id===x.id});if(v){v.updatedBy=x.updatedBy;v.updatedAt=x.updatedAt}});if(A.tab==='villa'&&isAdminPath())renderAdmin();dirty=false;saving=false;toast('Tersimpan! Website udah update.');var st=$('#st');if(st){st.className='st';st.textContent='Semua tersimpan'}if(btn){btn.disabled=false;btn.innerHTML='Simpan &amp; Publikasikan'}})
+  var pk=Object.keys(PRIV_DIRTY),names={};pk.forEach(function(id){var v=D.villas.find(function(x){return x.id===id});names[id]=v?v.name:''});
+  (pk.length?api('PUT','/api/private',{villas:PRIV_DIRTY,names:names}).then(function(){PRIV_DIRTY={}}):Promise.resolve())
+  .then(function(){return api('PUT','/api/data',{rev:REV,data:D})}).then(function(r){REV=r.rev;(r.villas||[]).forEach(function(x){var v=D.villas.find(function(y){return y.id===x.id});if(v){v.updatedBy=x.updatedBy;v.updatedAt=x.updatedAt}});if(A.tab==='villa'&&isAdminPath())renderAdmin();dirty=false;saving=false;toast('Tersimpan! Website udah update.');var st=$('#st');if(st){st.className='st';st.textContent='Semua tersimpan'}if(btn){btn.disabled=false;btn.innerHTML='Simpan &amp; Publikasikan'}})
   .catch(function(e){
     saving=false;if(btn){btn.disabled=false;btn.innerHTML='Simpan &amp; Publikasikan'}
     if(e.status===409)confirmBox('Data udah diubah dari perangkat lain','Muat ulang data terbaru? Perubahan di layar ini yang belum disimpan akan hilang.','Muat ulang').then(function(ok){if(ok){dirty=false;load().then(renderAdmin)}});
@@ -375,16 +390,17 @@ function renderLogin(){
   var last='';try{last=localStorage.getItem('pgvName')||''}catch(_){}
   app.innerHTML='<form class="login" id="lf"><img src="'+LOGO+'" alt="" style="height:56px;width:auto;align-self:center;filter:invert(1) brightness(.3)"><h1>Masuk admin</h1><label>Nama<input id="nm" autocomplete="username" required value="'+esc(last)+'" placeholder="Nama kamu"></label><label>Password<input type="password" id="pw" autocomplete="current-password" required></label><button class="btn primary" type="submit">Masuk</button><div id="le" class="err"></div><a href="/" style="font-size:13px">← Ke halaman tamu</a></form>';
   $('#lf').onsubmit=function(e){e.preventDefault();var b=$('#lf button'),nm=$('#nm').value.trim();b.disabled=true;$('#le').textContent='';
-    api('POST','/api/login',{name:nm,password:$('#pw').value}).then(function(r){setTok(r.token);USER={name:r.name,role:r.role};try{localStorage.setItem('pgvName',nm)}catch(_){}renderAdmin()}).catch(function(er){b.disabled=false;$('#le').textContent=er.status===401?'Nama atau password salah.':er.message})};
+    api('POST','/api/login',{name:nm,password:$('#pw').value}).then(function(r){setTok(r.token);try{localStorage.setItem('pgvName',nm)}catch(_){}startAdmin({name:r.name,role:r.role,canSeeOwner:r.canSeeOwner})}).catch(function(er){b.disabled=false;$('#le').textContent=er.status===401?'Nama atau password salah.':er.message})};
 }
 function loadAdmins(p){
   var box=$('#adl',p);if(!box)return;
   api('GET','/api/admins').then(function(r){
-    box.innerHTML=r.admins.length?r.admins.map(function(a){return '<div class="it"><span>👤 <b>'+esc(a.name)+'</b></span><button class="btn sm danger" data-ad="'+esc(a.id)+'" data-an="'+esc(a.name)+'">Hapus</button></div>'}).join(''):'<p class="hint" style="margin:0">Belum ada akun admin.</p>';
+    box.innerHTML=r.admins.length?r.admins.map(function(a){return '<div class="it"><span>👤 <b>'+esc(a.name)+'</b></span><label class="chk" style="margin-left:auto;font-size:12.5px"><input type="checkbox" data-co="'+esc(a.id)+'"'+(a.canSeeOwner?' checked':'')+'> lihat kontak pemilik</label><button class="btn sm danger" data-ad="'+esc(a.id)+'" data-an="'+esc(a.name)+'">Hapus</button></div>'}).join(''):'<p class="hint" style="margin:0">Belum ada akun admin.</p>';
+    $$('[data-co]',p).forEach(function(c){c.onchange=function(){api('PATCH','/api/admins',{id:c.dataset.co,canSeeOwner:c.checked}).then(function(){toast(c.checked?'Akses kontak pemilik dikasih.':'Akses kontak pemilik dicabut.')}).catch(function(e){c.checked=!c.checked;toast('Gagal: '+e.message)})}});
     $$('[data-ad]',p).forEach(function(b){b.onclick=function(){confirmBox('Hapus admin '+b.dataset.an+'?','Dia langsung nggak bisa masuk admin lagi. Riwayat yang pernah dia buat tetap tersimpan.','Hapus').then(function(ok){if(!ok)return;api('DELETE','/api/admins?id='+encodeURIComponent(b.dataset.ad)).then(function(){toast('Admin dihapus.');loadAdmins(p)}).catch(function(e){toast('Gagal: '+e.message)})})}});
   }).catch(function(e){box.innerHTML='<p class="err">'+esc(e.message)+'</p>'});
   $('#aa',p).onclick=function(){var n=$('#an',p).value.trim(),pw=$('#ap',p).value;$('#ae',p).textContent='';
-    api('POST','/api/admins',{name:n,password:pw}).then(function(){$('#an',p).value='';$('#ap',p).value='';toast('Akun '+n+' siap. Kasih tau nama & password-nya ke dia.',4500);loadAdmins(p)}).catch(function(e){$('#ae',p).textContent=e.message})};
+    api('POST','/api/admins',{name:n,password:pw,canSeeOwner:$('#ac',p).checked}).then(function(){$('#an',p).value='';$('#ap',p).value='';toast('Akun '+n+' siap. Kasih tau nama & password-nya ke dia.',4500);loadAdmins(p)}).catch(function(e){$('#ae',p).textContent=e.message})};
 }
 var L={month:'',by:''};
 function paneLog(p){
@@ -408,7 +424,7 @@ function paneLog(p){
 function isAdminPath(){return /^\/admin\/?$/.test(location.pathname)}
 function load(){return fetch('/api/data',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(setData)}
 function route(){
-  if(isAdminPath()){if(!TOK){renderLogin();return}api('GET','/api/login').then(function(u){USER=u;renderAdmin()}).catch(function(){setTok('');renderLogin()})}
+  if(isAdminPath()){if(!TOK){renderLogin();return}api('GET','/api/login').then(startAdmin).catch(function(){setTok('');renderLogin()})}
   else renderGuest();
 }
 app.innerHTML='<div class="loading">Memuat…</div>';

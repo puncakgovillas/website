@@ -29,6 +29,8 @@ export async function onRequestPut({ request, env }) {
   if (!incoming || !Array.isArray(incoming.villas) || typeof incoming.settings !== 'object') {
     return json({ error: 'Format data tidak valid.' }, 400);
   }
+  // Kontak pemilik nggak boleh masuk data publik
+  incoming.villas.forEach((v) => { delete v.ownerName; delete v.ownerPhone; delete v.ownerNote; });
   const current = await readData(env);
   const curRev = current.rev || 0;
   if ((body.rev || 0) !== curRev) {

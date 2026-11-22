@@ -21,3 +21,7 @@ Deploy otomatis dari branch `main` lewat Cloudflare Workers Builds.
 - Pemilik masuk dengan nama bebas + `ADMIN_PASSWORD`.
 - Admin staf dibuat pemilik di Pengaturan → Akun admin (disimpan di R2 `admins.json`, password di-hash PBKDF2).
 - Tiap simpan dicatat di R2 `log/YYYY-MM.json` (siapa, kapan, apa yang berubah) → tab Riwayat (khusus pemilik).
+
+## Kontak pemilik villa (rahasia)
+- Disimpan terpisah di R2 `private.json`, lewat `GET/PUT /api/private`. Nggak pernah masuk `data.json`/website publik (`PUT /api/data` juga membuang field owner*).
+- Yang bisa lihat: pemilik + admin yang dicentang "lihat kontak pemilik" (Pengaturan → Akun admin).
