@@ -28,7 +28,7 @@ export async function onRequestPost({ request, env }) {
 export async function onRequestGet({ request, env }) {
   const miss = needBucket(env);
   if (miss) return miss;
-  const { user, error } = await requireUser(request, env);
+  const { user, error } = await requireUser(request, env, 'team');
   if (error) return error;
   const out = [];
   let cursor;
@@ -44,7 +44,7 @@ export async function onRequestGet({ request, env }) {
 export async function onRequestDelete({ request, env }) {
   const miss = needBucket(env);
   if (miss) return miss;
-  const { user, error } = await requireUser(request, env);
+  const { user, error } = await requireUser(request, env, 'team');
   if (error) return error;
   const url = new URL(request.url).searchParams.get('url') || '';
   const m = /^\/photos\/([a-z0-9]+\.(jpg|png|webp))$/.exec(url);

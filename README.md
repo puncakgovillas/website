@@ -25,3 +25,9 @@ Deploy otomatis dari branch `main` lewat Cloudflare Workers Builds.
 ## Kontak pemilik villa (rahasia)
 - Disimpan terpisah di R2 `private.json`, lewat `GET/PUT /api/private`. Nggak pernah masuk `data.json`/website publik (`PUT /api/data` juga membuang field owner*).
 - Yang bisa lihat: pemilik + admin yang dicentang "lihat kontak pemilik" (Pengaturan → Akun admin).
+
+## Akun mitra (pemilik villa)
+- Jenis akun `mitra` cuma bisa lihat & atur villa dengan `ownerAcc` = id akunnya (villa yang dia tambah, atau yang ditugasin pemilik lewat Edit villa).
+- Server (`mergeMitra` di `functions/api/data.js`) yang maksa batasan ini: perubahan mitra ke villa lain, pengaturan, high season diabaikan.
+- Mitra nggak bisa akses kontak pemilik, riwayat, daftar/hapus foto, dan akun.
+- Simpan bentrok (409) digabung otomatis di browser (merge 3 arah) lalu dicoba sekali lagi.

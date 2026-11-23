@@ -171,3 +171,4 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;
 .privbox{background:#fff8ec;border:1px dashed #e2b77a;border-radius:12px;padding:12px}
 .privh{font-weight:700;font-size:13.5px;margin-bottom:10px;color:#7a4a12}
 .privbox .fg{gap:10px}
+.badge.mit{background:#f7ead8;color:#8a5516}

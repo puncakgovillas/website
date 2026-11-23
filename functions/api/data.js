@@ -41,6 +41,7 @@ export async function onRequestPut({ request, env }) {
   await env.BUCKET.put(`backups/${stamp}.json`, JSON.stringify(current), {
     httpMetadata: { contentType: 'application/json' },
   });
+  if (user.role === 'mitra') mergeMitra(current, incoming, user);
   const { items, changedIds } = describeChanges(current, incoming);
   const nowIso = new Date().toISOString();
   // Tandai villa yang diubah: siapa & kapan
@@ -54,4 +55,24 @@ export async function onRequestPut({ request, env }) {
   });
   await addLog(env, user, items);
   return json({ ok: true, rev: next.rev, villas: next.villas.map((v) => ({ id: v.id, updatedBy: v.updatedBy, updatedAt: v.updatedAt })) });
+}
+
+// Akun mitra cuma boleh ngubah villa miliknya sendiri. Sisanya selalu diambil dari data di server.
+function mergeMitra(current, incoming, user) {
+  const own = (v) => v && v.ownerAcc === user.id;
+  const cur = new Map((current.villas || []).map((v) => [v.id, v]));
+  const inc = new Map(incoming.villas.map((v) => [v.id, v]));
+  const villas = [];
+  for (const v of current.villas || []) {
+    if (!own(v)) { villas.push(v); continue; }
+    const nv = inc.get(v.id);
+    if (nv) villas.push({ ...nv, ownerAcc: user.id }); // diubah / tetap; kalau nggak ada = dihapus mitra
+  }
+  for (const v of incoming.villas) if (!cur.has(v.id)) villas.push({ ...v, ownerAcc: user.id }); // villa baru
+  const ownIds = new Set(villas.filter(own).map((v) => v.id));
+  const booked = { ...(current.booked || {}) };
+  for (const id of Object.keys(booked)) if (cur.has(id) && own(cur.get(id)) && !ownIds.has(id)) delete booked[id];
+  for (const id of ownIds) { const b = (incoming.booked || {})[id]; if (Array.isArray(b) && b.length) booked[id] = b; else delete booked[id]; }
+  for (const k of Object.keys(incoming)) delete incoming[k];
+  Object.assign(incoming, current, { villas, booked });
 }
