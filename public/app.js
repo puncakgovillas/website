@@ -114,10 +114,23 @@ function search(){
   if(under.length){h+='<div class="sec">Lebih hemat dari budget <span class="tag">di bawah '+rp(lo)+'</span></div><div class="grid">'+under.map(function(i){return card(i,ns,g,false)}).join('')+'</div>'}
   if(over.length){h+='<div class="sec">Sedikit di atas budget <span class="tag">maks +'+(Number(s.overPct)||0)+'%</span></div><div class="grid">'+over.map(function(i){return card(i,ns,g,true)}).join('')+'</div>'}
   res.innerHTML=h;
+  bindPhotos(res);
+}
+function bindPhotos(root){
+  $$('.vc',root).forEach(function(c){var ph=$('.ph',c),idx=$('.phi',c);if(!ph||!idx)return;
+    function upd(){var i=Math.round(ph.scrollLeft/Math.max(1,ph.clientWidth)),n=ph.children.length;idx.textContent=i+1;var pv=$('.phb.prev',c),nx=$('.phb.next',c);if(pv)pv.disabled=i<=0;if(nx)nx.disabled=i>=n-1}
+    ph.addEventListener('scroll',function(){clearTimeout(ph._t);ph._t=setTimeout(upd,60)},{passive:true});upd();
+    $$('.phb',c).forEach(function(b){b.addEventListener('click',function(e){e.preventDefault();var i=Math.round(ph.scrollLeft/Math.max(1,ph.clientWidth))+Number(b.dataset.ph);i=Math.max(0,Math.min(ph.children.length-1,i));ph.scrollTo({left:i*ph.clientWidth,behavior:'smooth'})})});
+    // geser pakai drag mouse di komputer
+    var down=false,sx=0,sl=0,moved=false;
+    ph.addEventListener('mousedown',function(e){down=true;moved=false;sx=e.pageX;sl=ph.scrollLeft;ph.classList.add('drag');e.preventDefault()});
+    window.addEventListener('mousemove',function(e){if(!down)return;var dx=e.pageX-sx;if(Math.abs(dx)>3)moved=true;ph.scrollLeft=sl-dx});
+    window.addEventListener('mouseup',function(e){if(!down)return;down=false;ph.classList.remove('drag');var dx=e.pageX-sx,i=Math.round(sl/Math.max(1,ph.clientWidth));if(dx<-40)i++;else if(dx>40)i--;i=Math.max(0,Math.min(ph.children.length-1,i));ph.scrollTo({left:i*ph.clientWidth,behavior:'smooth'})});
+  });
 }
 function card(i,ns,g,isOver){
   var v=i.v,q=i.q,s=D.settings,ph=goodPhotos(v);
-  var photos=ph.length?'<div class="ph">'+ph.map(function(p,k){return '<img src="'+imgSrc(p)+'" alt="'+esc(v.name)+' foto '+(k+1)+'" loading="lazy">'}).join('')+'</div>'+(ph.length>1?'<div class="phn">'+ph.length+' foto · geser</div>':''):'<div class="ph none">'+esc((v.name||'V').charAt(0))+'</div>';
+  var photos=ph.length?'<div class="phw"><div class="ph">'+ph.map(function(p,k){return '<img src="'+imgSrc(p)+'" alt="'+esc(v.name)+' foto '+(k+1)+'" loading="lazy">'}).join('')+'</div>'+(ph.length>1?'<button type="button" class="phb prev" data-ph="-1" aria-label="Foto sebelumnya">‹</button><button type="button" class="phb next" data-ph="1" aria-label="Foto berikutnya">›</button><div class="phn"><span class="phi">1</span>/'+ph.length+' foto</div>':'')+'</div>':'<div class="ph none">'+esc((v.name||'V').charAt(0))+'</div>';
   var parts=[];if(q.c.weekday)parts.push(q.c.weekday+' weekday');if(q.c.weekend)parts.push(q.c.weekend+' weekend');if(q.c.high)parts.push(q.c.high+' high season');
   var price=s.priceMode==='from'
     ?'<div class="price"><small>mulai dari</small><b>'+rp(minRate(v))+'</b><small>per malam</small></div>'
