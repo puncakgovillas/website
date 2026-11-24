@@ -183,3 +183,15 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;
 @media(hover:hover){.phb{opacity:0;transition:opacity .2s}.vc:hover .phb:not(:disabled){opacity:.95}}
 
 .phw{position:relative}
+
+.badge.pend{background:#fff1d6;color:#9a6200}
+.badge.rej{background:#fde2e0;color:#b3261e}
+.dupc{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px}
+.dupc.warn{border-color:#f0c36d;background:#fffcf3}
+.dupm{margin-top:10px;border-top:1px dashed #e5cf9c;padding-top:8px}
+.dupm .dh{font-weight:700;color:#9a6200;font-size:13px;margin-bottom:6px}
+.dupm .vi{background:#fff}
+.why{color:#b3261e!important;font-weight:600}
+.vi .inf .why{display:block;color:#b3261e;font-weight:600;font-size:12px;margin:1px 0}
+.vi .inf .upd b,.vi .inf .own b{display:inline}
+.dupc .vi .inf>span:first-of-type{display:block}

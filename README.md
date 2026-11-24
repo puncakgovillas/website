@@ -31,3 +31,11 @@ Deploy otomatis dari branch `main` lewat Cloudflare Workers Builds.
 - Server (`mergeMitra` di `functions/api/data.js`) yang maksa batasan ini: perubahan mitra ke villa lain, pengaturan, high season diabaikan.
 - Mitra cuma bisa isi & lihat kontak pemilik villanya sendiri; nggak bisa akses riwayat, daftar/hapus foto, dan akun.
 - Simpan bentrok (409) digabung otomatis di browser (merge 3 arah) lalu dicoba sekali lagi.
+
+## Verifikasi villa dari mitra/broker (anti dobel)
+- Villa **baru** yang diinput akun mitra otomatis `status: "pending"` (diatur server, mitra nggak bisa ubah) dan nggak tampil ke tamu.
+- Mitra wajib isi no. HP pemilik buat villa baru.
+- `GET /api/dupes`: admin dapat daftar villa pending + villa lain yang mirip (no. HP pemilik sama, nama sama/mirip, lokasi & kamar sama). Mitra cuma dapat tanda "kemungkinan dobel" buat villanya sendiri.
+- Tab **Verifikasi** di admin: Setujui / Bukan dobel (disimpan di `notDup`) / Tolak (status `rejected`, villa nggak dihapus).
+- `createdBy` / `createdAt` diisi server pas villa pertama kali dibuat → dasar aturan komisi "yang input duluan".
+- Villa lama (sebelum fitur ini) nggak ikut dicek.

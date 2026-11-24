@@ -6,8 +6,9 @@ import * as photoFile from './functions/photos/[name].js';
 import * as admins from './functions/api/admins.js';
 import * as log from './functions/api/log.js';
 import * as priv from './functions/api/private.js';
+import * as dupes from './functions/api/dupes.js';
 
-const ROUTES = { '/api/data': data, '/api/login': login, '/api/photo': photo, '/api/admins': admins, '/api/log': log, '/api/private': priv };
+const ROUTES = { '/api/data': data, '/api/login': login, '/api/photo': photo, '/api/admins': admins, '/api/log': log, '/api/private': priv, '/api/dupes': dupes };
 
 function pick(mod, method) {
   const name = 'onRequest' + method.charAt(0) + method.slice(1).toLowerCase();

@@ -17,7 +17,11 @@ function myVillas(){return isMitra()?D.villas.filter(function(v){return v.ownerA
 var ACCS=[];
 function loadAccs(){if(!isOwner()){ACCS=[];return Promise.resolve()}return api('GET','/api/admins').then(function(r){ACCS=r.admins||[]}).catch(function(){ACCS=[]})}
 function accName(id){var a=ACCS.find(function(x){return x.id===id});return a?a.name:''}
-function startAdmin(u){USER=u;PRIV_DIRTY={};if(isMitra()&&['villa','cal'].indexOf(A.tab)<0)A.tab='villa';Promise.all([loadPriv(),loadAccs()]).then(renderAdmin)}
+var DUPS={};
+function loadDups(){if(!isMitra()){DUPS={};return Promise.resolve()}return api('GET','/api/dupes').then(function(r){DUPS={};(r.villas||[]).forEach(function(x){DUPS[x.id]=x})}).catch(function(){})}
+function pendingCount(){return D.villas.filter(function(v){return v.status==='pending'}).length}
+function statusBadge(v){if(v.status==='pending'){var d=DUPS[v.id];return '<span class="badge pend">Menunggu verifikasi</span>'+(isMitra()&&d&&d.possibleDup?'<span class="badge rej">Kemungkinan sudah terdaftar</span>':'')}if(v.status==='rejected')return '<span class="badge rej">Ditolak</span>';return ''}
+function startAdmin(u){USER=u;PRIV_DIRTY={};if(isMitra()&&['villa','cal'].indexOf(A.tab)<0)A.tab='villa';Promise.all([loadPriv(),loadAccs(),loadDups()]).then(renderAdmin)}
 function api(method,url,body,isFile){var h={};if(TOK)h['authorization']='Bearer '+TOK;if(body&&!isFile)h['content-type']='application/json';if(isFile)h['content-type']=body.type||'image/jpeg';
   return fetch(url,{method:method,headers:h,body:body?(isFile?body:JSON.stringify(body)):undefined,cache:'no-store'}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok){var e=new Error(j.error||('HTTP '+r.status));e.status=r.status;e.body=j;throw e}return j})})}
 var dirty=false;
@@ -93,7 +97,7 @@ function search(){
   var ns=nights(ci,co);
   var dt=fmtD(ci,{weekday:'short'})+' – '+fmtD(co,{weekday:'short'});
   var askTxt='Halo '+s.brand+', saya cari villa\nCheck-in: '+fmtD(ci,{weekday:'long'})+'\nCheck-out: '+fmtD(co,{weekday:'long'})+' ('+ns.length+' malam)\nJumlah tamu: '+g+' orang'+(b?'\nBudget: '+bl+unit:'')+'\nAda yang available?';
-  var act=D.villas.filter(function(v){return v.active!==false});
+  var act=D.villas.filter(function(v){return v.active!==false&&!v.status});
   if(!act.length){res.innerHTML=msgBox('Daftar villa lagi disiapkan','Langsung tanya admin aja ya.',askTxt);return}
   var fit=act.filter(function(v){return g<=capOf(v)});
   if(!fit.length){res.innerHTML=msgBox('Belum ada 1 villa yang muat '+g+' orang','Rombongan besar bisa pakai 2 villa sekaligus. Chat admin buat dicarikan kombinasinya.',askTxt);return}
@@ -150,18 +154,18 @@ function matchQ(v){var q=A.q.trim().toLowerCase();return !q||String(v.name||'').
 function markDirty(){dirty=true;var st=$('#st');if(st){st.className='st d';st.textContent='Ada perubahan yang belum disimpan'}}
 function renderAdmin(){
   app.innerHTML='<div class="abar"><div class="wrap"><span class="t">Admin · '+esc(D.settings.brand)+'</span><span class="who">👤 '+esc(USER?USER.name:'')+(isOwner()?' (Pemilik)':isMitra()?' (Mitra)':' (Admin)')+'</span><span id="st" class="st'+(dirty?' d':'')+'">'+(dirty?'Ada perubahan yang belum disimpan':'Semua tersimpan')+'</span><a href="/" target="_blank">Lihat halaman tamu</a><a href="#" id="logout">Keluar</a><button class="btn primary" id="saveBtn">Simpan &amp; Publikasikan</button></div></div>'+
-   '<div class="wrap"><div class="tabs">'+(isMitra()?[['villa','Villa Saya'],['cal','Jadwal']]:[['villa','Villa'],['cal','Tanggal Terisi'],['hs','High Season'],['set','Pengaturan']]).concat(isOwner()?[['log','Riwayat']]:[]).map(function(t){return '<button data-tab="'+t[0]+'" class="'+(A.tab===t[0]?'on':'')+'">'+t[1]+'</button>'}).join('')+'</div><div id="pane"></div></div>';
+   '<div class="wrap"><div class="tabs">'+(isMitra()?[['villa','Villa Saya'],['cal','Jadwal']]:[['villa','Villa'],['dup','Verifikasi'+(pendingCount()?' ('+pendingCount()+')':'')],['cal','Tanggal Terisi'],['hs','High Season'],['set','Pengaturan']]).concat(isOwner()?[['log','Riwayat']]:[]).map(function(t){return '<button data-tab="'+t[0]+'" class="'+(A.tab===t[0]?'on':'')+'">'+t[1]+'</button>'}).join('')+'</div><div id="pane"></div></div>';
   $$('[data-tab]').forEach(function(b){b.addEventListener('click',function(){A.tab=b.dataset.tab;renderAdmin()})});
   $('#saveBtn').addEventListener('click',save);
   $('#logout').onclick=function(e){e.preventDefault();if(dirty&&!window.confirm('Ada perubahan belum disimpan. Tetap keluar?'))return;setTok('');USER=null;PRIV={};PRIV_DIRTY={};dirty=false;renderLogin()};
   var p=$('#pane');
-  if(A.tab==='villa')paneVilla(p);else if(A.tab==='cal')paneCal(p);else if(A.tab==='hs'&&!isMitra())paneHS(p);else if(A.tab==='log'&&isOwner())paneLog(p);else if(!isMitra())paneSet(p);else paneVilla(p);
+  if(A.tab==='villa')paneVilla(p);else if(A.tab==='cal')paneCal(p);else if(A.tab==='hs'&&!isMitra())paneHS(p);else if(A.tab==='dup'&&!isMitra())paneDup(p);else if(A.tab==='log'&&isOwner())paneLog(p);else if(!isMitra())paneSet(p);else paneVilla(p);
 }
 
 function paneVilla(p){
   function rows(){return myVillas().filter(matchQ).map(function(v){
     var gp=goodPhotos(v),th=gp[0]?'<img src="'+gp[0]+'" alt="" loading="lazy">':'<div class="th">'+esc((v.name||'V').charAt(0))+'</div>';
-    return '<div class="vi">'+th+'<div class="inf"><b>'+esc(v.name)+'<span class="badge'+(v.active!==false?' on':'')+'">'+(v.active!==false?'Tampil':'Disembunyikan')+'</span>'+(!isMitra()&&v.ownerAcc?'<span class="badge mit">Mitra'+(accName(v.ownerAcc)?': '+esc(accName(v.ownerAcc)):(isOwner()?': akun dihapus':''))+'</span>':'')+'</b><span>'+(v.bedrooms||'-')+' kamar · '+(v.capStd||'-')+'–'+capOf(v)+' orang · WD '+rp(v.priceWeekday)+' · WE '+rp(v.priceWeekend)+(v.priceHigh?' · HS '+rp(v.priceHigh):'')+'</span>'+(canOwner()&&PRIV[v.id]&&(PRIV[v.id].ownerName||PRIV[v.id].ownerPhone)?'<span class="own">🔒 Pemilik: <b>'+esc(PRIV[v.id].ownerName||'-')+'</b>'+(PRIV[v.id].ownerPhone?' · <a href="'+waOwner(PRIV[v.id].ownerPhone)+'" target="_blank" rel="noopener">'+esc(PRIV[v.id].ownerPhone)+'</a>':'')+'</span>':'')+(v.updatedBy?'<span class="upd">Terakhir diubah <b>'+esc(v.updatedBy)+'</b> · '+fmtTime(v.updatedAt)+'</span>':'')+'</div><div class="act"><button class="btn sm" data-edit="'+v.id+'">Edit</button><button class="btn sm danger" data-del="'+v.id+'">Hapus</button></div></div>';
+    return '<div class="vi">'+th+'<div class="inf"><b>'+esc(v.name)+(v.status?'':'<span class="badge'+(v.active!==false?' on':'')+'">'+(v.active!==false?'Tampil':'Disembunyikan')+'</span>')+statusBadge(v)+(!isMitra()&&v.ownerAcc?'<span class="badge mit">Mitra'+(accName(v.ownerAcc)?': '+esc(accName(v.ownerAcc)):(isOwner()?': akun dihapus':''))+'</span>':'')+'</b><span>'+(v.bedrooms||'-')+' kamar · '+(v.capStd||'-')+'–'+capOf(v)+' orang · WD '+rp(v.priceWeekday)+' · WE '+rp(v.priceWeekend)+(v.priceHigh?' · HS '+rp(v.priceHigh):'')+'</span>'+(canOwner()&&PRIV[v.id]&&(PRIV[v.id].ownerName||PRIV[v.id].ownerPhone)?'<span class="own">🔒 Pemilik: <b>'+esc(PRIV[v.id].ownerName||'-')+'</b>'+(PRIV[v.id].ownerPhone?' · <a href="'+waOwner(PRIV[v.id].ownerPhone)+'" target="_blank" rel="noopener">'+esc(PRIV[v.id].ownerPhone)+'</a>':'')+'</span>':'')+(v.status==='pending'&&isMitra()?'<span class="upd">'+(DUPS[v.id]&&DUPS[v.id].possibleDup?'⚠️ Villa ini kemungkinan sudah terdaftar. Admin PuncakGoVillas lagi ngecek dulu.':'Belum tampil ke tamu sampai disetujui admin.')+'</span>':'')+(v.status==='pending'&&!isMitra()?'<span class="upd"><a href="#" data-gover>⏳ Belum tampil ke tamu · cek di tab Verifikasi</a></span>':'')+(v.status==='rejected'?'<span class="upd">Ditolak'+(v.rejectNote?': '+esc(v.rejectNote):'')+'</span>':'')+(v.updatedBy?'<span class="upd">Terakhir diubah <b>'+esc(v.updatedBy)+'</b> · '+fmtTime(v.updatedAt)+'</span>':'')+'</div><div class="act"><button class="btn sm" data-edit="'+v.id+'">Edit</button><button class="btn sm danger" data-del="'+v.id+'">Hapus</button></div></div>';
   }).join('')}
   p.innerHTML='<div class="panel"><div class="row" style="justify-content:space-between;align-items:center"><div><h2>'+(isMitra()?'Villa Saya':'Daftar Villa')+' ('+myVillas().length+')</h2><p class="hint" style="margin:0">Data villa yang tampil ke tamu.</p></div><div class="row">'+(isMitra()?'':'<button class="btn" id="impV">Import Excel</button>')+'<button class="btn primary" id="addV">+ Tambah Villa</button></div></div>'+'<div class="srch" style="margin-top:14px"><input id="vq" type="search" placeholder="🔍 Cari nama villa atau lokasi…" value="'+esc(A.q)+'" autocomplete="off"></div>'+'<div class="vl" id="vl" style="margin-top:14px"></div></div>';
   function fill(){var h=rows();$('#vl',p).innerHTML=h||(myVillas().length?'<p class="hint">Nggak ada villa yang cocok.</p>':'<div class="empty"><b>Belum ada villa</b>Klik "Tambah Villa" buat mulai'+(isMitra()?' upload villa kamu.':' (atau "Import Excel").')+'</div>');bind()}
@@ -171,6 +175,7 @@ function paneVilla(p){
   fill();
   function bind(){
   $$('[data-edit]',p).forEach(function(b){b.addEventListener('click',function(){editVilla(b.dataset.edit)})});
+  $$('[data-gover]',p).forEach(function(b){b.addEventListener('click',function(e){e.preventDefault();A.tab='dup';renderAdmin()})});
   $$('[data-del]',p).forEach(function(b){b.addEventListener('click',function(){
     var v=D.villas.find(function(x){return x.id===b.dataset.del});
     confirmBox('Hapus '+v.name+'?','Villa dan tanggal terisinya bakal dihapus dari halaman ini.','Hapus').then(function(ok){if(!ok)return;D.villas=D.villas.filter(function(x){return x.id!==v.id});delete D.booked[v.id];markDirty();renderAdmin()})
@@ -179,6 +184,30 @@ function paneVilla(p){
 }
 
 /* ===== import excel ===== */
+/* ===== verifikasi villa baru dari broker/mitra + cek dobel ===== */
+function paneDup(p){
+  p.innerHTML='<div class="panel"><h2>Verifikasi villa baru</h2><p class="hint" style="margin:0">Villa baru yang diinput akun mitra/broker masuk sini dulu dan <b>belum tampil ke tamu</b> sampai disetujui. Sistem ngecek otomatis villa lain yang kemungkinan sama (no. HP pemilik, nama, lokasi & kamar). Aturan komisi: <b>yang input duluan yang dapet</b>.</p><div id="dl" style="margin-top:14px"><p class="hint">Memuat…</p></div></div>';
+  if(dirty){$('#dl',p).innerHTML='<div class="note">Ada perubahan yang belum disimpan. Klik <b>Simpan &amp; Publikasikan</b> dulu biar pengecekan dobelnya pakai data terbaru.</div>';return}
+  function when(x){return x.createdAt?fmtTime(x.createdAt):'data lama'}
+  function who(x){return x.by||(x.ownerAcc?accName(x.ownerAcc):'')||'tim'}
+  function info(x){return '<span>'+esc(x.location||'-')+' · '+(x.bedrooms||'-')+' kamar · WD '+rp(x.priceWeekday)+' · WE '+rp(x.priceWeekend)+'</span>'+(x.ownerPhone!=null?'<span class="own">🔒 Pemilik: '+esc(x.ownerName||'-')+(x.ownerPhone?' · '+esc(x.ownerPhone):' · <b>no. HP kosong</b>')+'</span>':'')+'<span class="upd">Diinput <b>'+esc(who(x))+'</b> · '+esc(when(x))+'</span>'}
+  function th(x){return imgSrc(x.photo)?'<img src="'+imgSrc(x.photo)+'" alt="" loading="lazy">':'<div class="th">'+esc((x.name||'V').charAt(0))+'</div>'}
+  api('GET','/api/dupes').then(function(r){
+    var list=(r.villas||[]).filter(function(x){return D.villas.some(function(v){return v.id===x.id&&v.status==='pending'})});
+    if(!list.length){$('#dl',p).innerHTML='<div class="empty"><b>Nggak ada yang perlu dicek</b>Semua villa dari mitra udah diverifikasi.</div>';return}
+    $('#dl',p).innerHTML=list.map(function(x){
+      var older=x.matches.filter(function(mm){return !mm.createdAt||mm.createdAt<x.createdAt});
+      return '<div class="dupc'+(x.matches.length?' warn':'')+'"><div class="vi">'+th(x)+'<div class="inf"><b>'+esc(x.name)+'<span class="badge pend">Baru</span></b>'+info(x)+(x.noPhone?'<span class="err" style="margin:0">⚠️ No. HP pemilik belum diisi, susah dicek dobelnya.</span>':'')+'</div></div>'+
+        (x.matches.length?'<div class="dupm"><div class="dh">⚠️ Kemungkinan sama dengan:</div>'+x.matches.map(function(mm){return '<div class="vi">'+th(mm)+'<div class="inf"><b>'+esc(mm.name)+(mm.status==='pending'?'<span class="badge pend">Juga baru</span>':'')+((!mm.createdAt||mm.createdAt<x.createdAt)?'<span class="badge on">Input duluan</span>':'')+'</b><span class="why">'+mm.reasons.map(esc).join(' · ')+'</span>'+info(mm)+'</div><div class="act"><button class="btn sm danger" data-rej="'+x.id+'" data-of="'+mm.id+'">Tolak, ini dobel</button></div></div>'}).join('')+'</div>':'<p class="hint" style="margin:8px 0 0">✅ Nggak ketemu villa lain yang mirip.</p>')+
+        '<div class="row" style="margin-top:10px;justify-content:flex-end"><button class="btn sm" data-edit="'+x.id+'">Lihat / edit</button><button class="btn sm danger" data-rej="'+x.id+'">Tolak</button><button class="btn sm primary" data-ok="'+x.id+'" data-m="'+x.matches.map(function(mm){return mm.id}).join(',')+'">'+(x.matches.length?'Bukan dobel, setujui':'Setujui')+'</button></div>'+
+        (older.length?'<p class="hint" style="margin:6px 0 0;text-align:right">Kalau ini beneran villa yang sama, komisi buat <b>'+esc(who(older[0]))+'</b> (input duluan).</p>':'')+'</div>'}).join('');
+    function V(id){return D.villas.find(function(v){return v.id===id})}
+    $$('[data-edit]',p).forEach(function(b){b.onclick=function(){editVilla(b.dataset.edit)}});
+    $$('[data-ok]',p).forEach(function(b){b.onclick=function(){var v=V(b.dataset.ok);if(!v)return;delete v.status;delete v.rejectNote;var ids=(b.dataset.m||'').split(',').filter(Boolean);if(ids.length)v.notDup=(v.notDup||[]).concat(ids.filter(function(i){return (v.notDup||[]).indexOf(i)<0}));markDirty();toast('Disetujui: '+v.name);save()}});
+    $$('[data-rej]',p).forEach(function(b){b.onclick=function(){var v=V(b.dataset.rej);if(!v)return;var of=b.dataset.of?V(b.dataset.of):null;
+      confirmBox('Tolak '+v.name+'?',of?'Villa ini ditandai dobel dengan '+of.name+'. Villanya nggak dihapus, cuma ditandai "Ditolak" dan nggak tampil ke tamu. Broker yang input bakal lihat keterangan "sudah terdaftar sebelumnya".':'Villanya nggak dihapus, cuma ditandai "Ditolak" dan nggak tampil ke tamu.','Tolak').then(function(ok){if(!ok)return;v.status='rejected';v.rejectNote=of?'Villa ini sudah terdaftar sebelumnya oleh pihak lain.':'Belum bisa ditampilkan, hubungi admin PuncakGoVillas.';markDirty();save()})}});
+  }).catch(function(e){$('#dl',p).innerHTML='<p class="err">Gagal memuat: '+esc(e.message)+'</p>'});
+}
 var XLSX_P=null;
 function loadXLSX(){if(window.XLSX)return Promise.resolve(window.XLSX);if(!XLSX_P)XLSX_P=new Promise(function(res,rej){var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=function(){window.XLSX?res(window.XLSX):rej()};sc.onerror=function(){XLSX_P=null;rej()};document.head.appendChild(sc)});return XLSX_P}
 var PCOLS={ownerName:['namapemilik','pemilik','pemilikvilla'],ownerPhone:['nohppemilik','nopemilik','hppemilik','nomorpemilik','wapemilik','nowapemilik','telppemilik'],ownerNote:['catatanpemilik']};
@@ -226,7 +255,7 @@ function compress(file){return new Promise(function(res,rej){var url=URL.createO
 function editVilla(id){
   var orig=id?D.villas.find(function(v){return v.id===id}):null;
   var v=orig?JSON.parse(JSON.stringify(orig)):{id:uid(),name:'',location:'',bedrooms:'',bathrooms:'',capStd:'',capMax:'',priceWeekday:'',priceWeekend:'',priceHigh:'',facilities:[],desc:'',photos:[],active:true};
-  if(!orig&&isMitra())v.ownerAcc=USER.id;
+  if(!orig&&isMitra()){v.ownerAcc=USER.id;v.status='pending'}
   var pv=Object.assign({},PRIV[v.id]||{});
   var mitras=ACCS.filter(function(a){return a.type==='mitra'});
   function money(n,k,l,hint){return '<label><span>'+l+(hint?' <span class="opt">'+hint+'</span>':'')+'</span><input data-m="'+k+'" inputmode="numeric" value="'+(n?Number(n).toLocaleString('id-ID'):'')+'" placeholder="0"></label>'}
@@ -242,7 +271,7 @@ function editVilla(id){
     '<div class="full"><label style="margin-bottom:6px">Fasilitas</label><div class="pick" id="fac"></div><div class="row" style="margin-top:8px"><label style="flex:1"><input id="facIn" placeholder="Tambah fasilitas lain, lalu Enter"></label><button class="btn sm" id="facAdd" type="button">Tambah</button></div></div>'+
     '<label class="full"><span>Deskripsi singkat <span class="opt">(opsional)</span></span><textarea data-k="desc" rows="3" placeholder="Villa luas dengan kolam renang dan view gunung...">'+esc(v.desc)+'</textarea></label>'+
     '<div class="full"><label style="margin-bottom:6px"><span>Foto <span class="opt">(maks 6, foto pertama jadi cover)</span></span></label><div class="pg" id="pg"></div><input type="file" id="pf" accept="image/*" multiple hidden></div>'+
-    (canOwner()?'<div class="full privbox"><div class="privh">🔒 Kontak pemilik villa <span class="opt">(rahasia, nggak tampil di website'+(isMitra()?'. Cuma kamu & tim PuncakGoVillas yang bisa lihat':', cuma kelihatan di admin')+')</span></div><div class="fg"><label>Nama pemilik<input id="oN" value="'+esc(pv.ownerName||'')+'" placeholder="Pak Budi"></label><label>No. HP / WA pemilik<input id="oP" inputmode="tel" value="'+esc(pv.ownerPhone||'')+'" placeholder="08xxxxxxxxxx"></label><label class="full">Catatan <span class="opt">(opsional)</span><input id="oC" value="'+esc(pv.ownerNote||'')+'" placeholder="misal: rekening, jam bisa dihubungi"></label></div></div>':'')+
+    (canOwner()?'<div class="full privbox"><div class="privh">🔒 Kontak pemilik villa <span class="opt">(rahasia, nggak tampil di website'+(isMitra()?'. Cuma kamu & tim PuncakGoVillas yang bisa lihat':', cuma kelihatan di admin')+')</span></div><div class="fg"><label>Nama pemilik<input id="oN" value="'+esc(pv.ownerName||'')+'" placeholder="Pak Budi"></label><label>No. HP / WA pemilik'+(isMitra()?' <span class="opt">(wajib)</span>':'')+'<input id="oP" inputmode="tel" value="'+esc(pv.ownerPhone||'')+'" placeholder="08xxxxxxxxxx"></label><label class="full">Catatan <span class="opt">(opsional)</span><input id="oC" value="'+esc(pv.ownerNote||'')+'" placeholder="misal: rekening, jam bisa dihubungi"></label></div></div>':'')+
     (isOwner()&&mitras.length?'<label class="full">Dikelola akun mitra <span class="opt">(mitra cuma bisa lihat & atur villa yang ditugasin ke dia)</span><select id="oAcc"><option value="">— Nggak ada (dikelola tim) —</option>'+mitras.map(function(a){return '<option value="'+esc(a.id)+'"'+(v.ownerAcc===a.id?' selected':'')+'>'+esc(a.name)+'</option>'}).join('')+'</select></label>':'')+
     '<label class="chk full"><input type="checkbox" id="act"'+(v.active!==false?' checked':'')+'> Tampilkan villa ini ke tamu</label>'+
     '</div><div id="er" class="err"></div><div class="mf"><button class="btn" data-x>Batal</button><button class="btn primary" data-ok>Simpan villa</button></div>');
@@ -270,7 +299,7 @@ function editVilla(id){
     v.active=$('#act',m).checked;
     if($('#oAcc',m)){var oa=$('#oAcc',m).value;if(oa)v.ownerAcc=oa;else delete v.ownerAcc}
     if(v.capMax&&v.capStd&&v.capMax<v.capStd)v.capMax=v.capStd;
-    var er=[];if(!v.name)er.push('nama villa');if(!v.capStd&&!v.capMax)er.push('kapasitas');if(!v.priceWeekday&&!v.priceWeekend)er.push('harga');
+    var er=[];if(!v.name)er.push('nama villa');if(isMitra()&&(!orig||v.status==='pending')&&$('#oP',m)&&$('#oP',m).value.replace(/\D/g,'').length<9)er.push('no. HP pemilik villa');if(!v.capStd&&!v.capMax)er.push('kapasitas');if(!v.priceWeekday&&!v.priceWeekend)er.push('harga');
     if(er.length){$('#er',m).textContent='Isi dulu: '+er.join(', ')+'.';return}
     if(canOwner()&&$('#oN',m)){var np={ownerName:$('#oN',m).value.trim(),ownerPhone:$('#oP',m).value.trim(),ownerNote:$('#oC',m).value.trim()},op=PRIV[v.id]||{};
       if(np.ownerName!==(op.ownerName||'')||np.ownerPhone!==(op.ownerPhone||'')||np.ownerNote!==(op.ownerNote||'')){PRIV_DIRTY[v.id]=np;PRIV[v.id]=Object.assign({},op,np)}}
@@ -411,7 +440,7 @@ function save(){
   saving=true;if(btn){btn.disabled=true;btn.textContent='Menyimpan…'}
   var t=todayDS();Object.keys(D.booked).forEach(function(k){D.booked[k]=D.booked[k].filter(function(d){return d>=t});if(!D.booked[k].length)delete D.booked[k]});Object.keys(D.synced||{}).forEach(function(k){D.synced[k]=D.synced[k].filter(function(d){return d>=t});if(!D.synced[k].length)delete D.synced[k]});
   var pk=Object.keys(PRIV_DIRTY),names={};pk.forEach(function(id){var v=D.villas.find(function(x){return x.id===id});names[id]=v?v.name:''});
-  api('PUT','/api/data',{rev:REV,data:D}).then(function(r){return (pk.length?api('PUT','/api/private',{villas:PRIV_DIRTY,names:names}).then(function(){PRIV_DIRTY={}}):Promise.resolve()).then(function(){return r})}).then(function(r){REV=r.rev;(r.villas||[]).forEach(function(x){var v=D.villas.find(function(y){return y.id===x.id});if(v){v.updatedBy=x.updatedBy;v.updatedAt=x.updatedAt}});save.retry=0;BASE=JSON.parse(JSON.stringify(Object.assign({},D,{rev:REV})));if(isAdminPath())renderAdmin();dirty=false;saving=false;toast('Tersimpan! Website udah update.');var st=$('#st');if(st){st.className='st';st.textContent='Semua tersimpan'}if(btn){btn.disabled=false;btn.innerHTML='Simpan &amp; Publikasikan'}})
+  api('PUT','/api/data',{rev:REV,data:D}).then(function(r){return (pk.length?api('PUT','/api/private',{villas:PRIV_DIRTY,names:names}).then(function(){PRIV_DIRTY={}}):Promise.resolve()).then(function(){return r})}).then(function(r){REV=r.rev;var newP=isMitra()?D.villas.filter(function(v){return v.status==='pending'&&!DUPS[v.id]}).length:0;loadDups().then(function(){if(isAdminPath())renderAdmin();if(newP)toast('Villa tersimpan & lagi nunggu verifikasi admin. Belum tampil ke tamu sampai disetujui.',5000)});(r.villas||[]).forEach(function(x){var v=D.villas.find(function(y){return y.id===x.id});if(v){v.updatedBy=x.updatedBy;v.updatedAt=x.updatedAt}});save.retry=0;BASE=JSON.parse(JSON.stringify(Object.assign({},D,{rev:REV})));if(isAdminPath())renderAdmin();dirty=false;saving=false;toast('Tersimpan! Website udah update.');var st=$('#st');if(st){st.className='st';st.textContent='Semua tersimpan'}if(btn){btn.disabled=false;btn.innerHTML='Simpan &amp; Publikasikan'}})
   .catch(function(e){
     if(e.status!==409)save.retry=0;
     saving=false;if(btn){btn.disabled=false;btn.innerHTML='Simpan &amp; Publikasikan'}

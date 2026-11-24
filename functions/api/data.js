@@ -41,9 +41,10 @@ export async function onRequestPut({ request, env }) {
   await env.BUCKET.put(`backups/${stamp}.json`, JSON.stringify(current), {
     httpMetadata: { contentType: 'application/json' },
   });
-  if (user.role === 'mitra') mergeMitra(current, incoming, user);
-  const { items, changedIds } = describeChanges(current, incoming);
   const nowIso = new Date().toISOString();
+  if (user.role === 'mitra') mergeMitra(current, incoming, user, nowIso);
+  else stampTeam(current, incoming, user, nowIso);
+  const { items, changedIds } = describeChanges(current, incoming);
   // Tandai villa yang diubah: siapa & kapan
   incoming.villas.forEach((v) => {
     if (changedIds.has(v.id)) { v.updatedBy = user.name; v.updatedAt = nowIso; }
@@ -57,8 +58,25 @@ export async function onRequestPut({ request, env }) {
   return json({ ok: true, rev: next.rev, villas: next.villas.map((v) => ({ id: v.id, updatedBy: v.updatedBy, updatedAt: v.updatedAt })) });
 }
 
+// Siapa & kapan villa pertama kali diinput: diisi server, nggak bisa diubah dari luar (dipakai buat aturan komisi "yang duluan")
+const KEEP = ['createdBy', 'createdById', 'createdAt'];
+function keepFrom(o, v) { KEEP.forEach((k) => { if (o && o[k] != null) v[k] = o[k]; else delete v[k]; }); }
+function stampTeam(current, incoming, user, nowIso) {
+  const cur = new Map((current.villas || []).map((v) => [v.id, v]));
+  incoming.villas.forEach((v) => {
+    const o = cur.get(v.id);
+    if (o) keepFrom(o, v);
+    else { v.createdBy = user.name; v.createdById = user.id; v.createdAt = nowIso; }
+    if (v.status !== 'pending' && v.status !== 'rejected') delete v.status;
+    if (v.status !== 'rejected') delete v.rejectNote;
+    if (!Array.isArray(v.notDup)) delete v.notDup;
+  });
+}
+
 // Akun mitra cuma boleh ngubah villa miliknya sendiri. Sisanya selalu diambil dari data di server.
-function mergeMitra(current, incoming, user) {
+// Villa baru dari mitra selalu masuk status "pending" (menunggu verifikasi admin), mitra nggak bisa ngubah status sendiri.
+const LOCKED = ['status', 'rejectNote', 'notDup'];
+function mergeMitra(current, incoming, user, nowIso) {
   const own = (v) => v && v.ownerAcc === user.id;
   const cur = new Map((current.villas || []).map((v) => [v.id, v]));
   const inc = new Map(incoming.villas.map((v) => [v.id, v]));
@@ -66,9 +84,18 @@ function mergeMitra(current, incoming, user) {
   for (const v of current.villas || []) {
     if (!own(v)) { villas.push(v); continue; }
     const nv = inc.get(v.id);
-    if (nv) villas.push({ ...nv, ownerAcc: user.id }); // diubah / tetap; kalau nggak ada = dihapus mitra
+    if (!nv) continue; // nggak ada = dihapus mitra
+    const x = { ...nv, ownerAcc: user.id };
+    keepFrom(v, x);
+    LOCKED.forEach((k) => { if (v[k] != null) x[k] = v[k]; else delete x[k]; });
+    villas.push(x);
   }
-  for (const v of incoming.villas) if (!cur.has(v.id)) villas.push({ ...v, ownerAcc: user.id }); // villa baru
+  for (const v of incoming.villas) {
+    if (cur.has(v.id)) continue;
+    const x = { ...v, ownerAcc: user.id, status: 'pending', createdBy: user.name, createdById: user.id, createdAt: nowIso };
+    delete x.rejectNote; delete x.notDup;
+    villas.push(x); // villa baru
+  }
   const ownIds = new Set(villas.filter(own).map((v) => v.id));
   const booked = { ...(current.booked || {}) };
   for (const id of Object.keys(booked)) if (cur.has(id) && own(cur.get(id)) && !ownIds.has(id)) delete booked[id];
