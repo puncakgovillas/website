@@ -7,6 +7,7 @@ import * as admins from './functions/api/admins.js';
 import * as log from './functions/api/log.js';
 import * as priv from './functions/api/private.js';
 import * as dupes from './functions/api/dupes.js';
+import { cleanRejectedPhotos } from './lib/cleanup.js';
 
 const ROUTES = { '/api/data': data, '/api/login': login, '/api/photo': photo, '/api/admins': admins, '/api/log': log, '/api/private': priv, '/api/dupes': dupes };
 
@@ -34,5 +35,9 @@ export default {
       return photoFile.onRequestGet({ request, env, ctx, params: { name: m[1] } });
     }
     return env.ASSETS.fetch(request);
+  },
+  // Cron harian (lihat wrangler.toml): bersihin foto villa yang udah lama ditolak
+  async scheduled(event, env, ctx) {
+    if (env.BUCKET) ctx.waitUntil(cleanRejectedPhotos(env));
   },
 };

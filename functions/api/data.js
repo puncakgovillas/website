@@ -68,14 +68,16 @@ function stampTeam(current, incoming, user, nowIso) {
     if (o) keepFrom(o, v);
     else { v.createdBy = user.name; v.createdById = user.id; v.createdAt = nowIso; }
     if (v.status !== 'pending' && v.status !== 'rejected') delete v.status;
-    if (v.status !== 'rejected') delete v.rejectNote;
+    if (v.status !== 'rejected') { delete v.rejectNote; delete v.rejectedAt; delete v.photosCleaned; }
+    else if (o && o.status === 'rejected' && o.rejectedAt) { v.rejectedAt = o.rejectedAt; if (o.photosCleaned) v.photosCleaned = o.photosCleaned; }
+    else v.rejectedAt = nowIso; // baru ditolak: mulai hitung 30 hari sebelum fotonya dibersihin otomatis
     if (!Array.isArray(v.notDup)) delete v.notDup;
   });
 }
 
 // Akun mitra cuma boleh ngubah villa miliknya sendiri. Sisanya selalu diambil dari data di server.
 // Villa baru dari mitra selalu masuk status "pending" (menunggu verifikasi admin), mitra nggak bisa ngubah status sendiri.
-const LOCKED = ['status', 'rejectNote', 'notDup'];
+const LOCKED = ['status', 'rejectNote', 'notDup', 'rejectedAt', 'photosCleaned'];
 function mergeMitra(current, incoming, user, nowIso) {
   const own = (v) => v && v.ownerAcc === user.id;
   const cur = new Map((current.villas || []).map((v) => [v.id, v]));
@@ -93,7 +95,7 @@ function mergeMitra(current, incoming, user, nowIso) {
   for (const v of incoming.villas) {
     if (cur.has(v.id)) continue;
     const x = { ...v, ownerAcc: user.id, status: 'pending', createdBy: user.name, createdById: user.id, createdAt: nowIso };
-    delete x.rejectNote; delete x.notDup;
+    delete x.rejectNote; delete x.notDup; delete x.rejectedAt; delete x.photosCleaned;
     villas.push(x); // villa baru
   }
   const ownIds = new Set(villas.filter(own).map((v) => v.id));

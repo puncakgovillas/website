@@ -39,3 +39,4 @@ Deploy otomatis dari branch `main` lewat Cloudflare Workers Builds.
 - Tab **Verifikasi** di admin: Setujui / Bukan dobel (disimpan di `notDup`) / Tolak (status `rejected`, villa nggak dihapus).
 - `createdBy` / `createdAt` diisi server pas villa pertama kali dibuat → dasar aturan komisi "yang input duluan".
 - Villa lama (sebelum fitur ini) nggak ikut dicek.
+- Villa yang ditolak: fotonya dihapus otomatis 30 hari setelah ditolak (Cron Trigger harian `0 20 * * *` = 03:00 WIB, `lib/cleanup.js`). Data teks tetap disimpan. Admin juga bisa klik **Hapus permanen** buat langsung buang villa + fotonya.
