@@ -195,3 +195,4 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;
 .vi .inf .why{display:block;color:#b3261e;font-weight:600;font-size:12px;margin:1px 0}
 .vi .inf .upd b,.vi .inf .own b{display:inline}
 .dupc .vi .inf>span:first-of-type{display:block}
+.rl .yh{font-weight:700;color:var(--muted);font-size:12px;margin:10px 0 4px;letter-spacing:.04em}

@@ -40,3 +40,8 @@ Deploy otomatis dari branch `main` lewat Cloudflare Workers Builds.
 - `createdBy` / `createdAt` diisi server pas villa pertama kali dibuat → dasar aturan komisi "yang input duluan".
 - Villa lama (sebelum fitur ini) nggak ikut dicek.
 - Villa yang ditolak: fotonya dihapus otomatis 30 hari setelah ditolak (Cron Trigger harian `0 20 * * *` = 03:00 WIB, `lib/cleanup.js`). Data teks tetap disimpan. Admin juga bisa klik **Hapus permanen** buat langsung buang villa + fotonya.
+
+## Jenis harga per malam
+Urutan: high season (rentang di admin) > Natal (malam 24 & 25 Des = weekend) > Sabtu = weekend > Jumat / malam sebelum tanggal merah (Min–Kam) = semi weekend > weekday.
+Harga semi weekend diisi per villa (`priceSemi`); kalau kosong pakai rata-rata weekday & weekend (dibulatkan 50rb).
+Tanggal merah disimpan di `holidays` ([{date,label}]), default libur nasional SKB 3 Menteri 2027 (`DEF_HOL` di app.js).

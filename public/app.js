@@ -3,8 +3,8 @@ var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
 var BASE=null;
-function setData(raw){raw=raw||{};REV=raw.rev||0;BASE=JSON.parse(JSON.stringify(raw));var extra={};Object.keys(raw).forEach(function(k){if(['rev','savedAt','settings','villas','booked','highSeason','synced','syncInfo'].indexOf(k)<0)extra[k]=raw[k]});
-  D=Object.assign(extra,{settings:Object.assign({},DEFS,raw.settings||{}),villas:raw.villas||[],booked:raw.booked||{},highSeason:raw.highSeason||[],synced:raw.synced||{},syncInfo:raw.syncInfo||null})}
+function setData(raw){raw=raw||{};REV=raw.rev||0;BASE=JSON.parse(JSON.stringify(raw));var extra={};Object.keys(raw).forEach(function(k){if(['rev','savedAt','settings','villas','booked','highSeason','holidays','synced','syncInfo'].indexOf(k)<0)extra[k]=raw[k]});
+  D=Object.assign(extra,{settings:Object.assign({},DEFS,raw.settings||{}),villas:raw.villas||[],booked:raw.booked||{},highSeason:raw.highSeason||[],holidays:Array.isArray(raw.holidays)?raw.holidays:DEF_HOL.map(function(h){return Object.assign({},h)}),synced:raw.synced||{},syncInfo:raw.syncInfo||null})}
 var TOK='',USER=null;try{TOK=localStorage.getItem('pgvTok')||'';localStorage.removeItem('pgvKey')}catch(e){}
 function setTok(t){TOK=t||'';try{if(TOK)localStorage.setItem('pgvTok',TOK);else localStorage.removeItem('pgvTok')}catch(e){}}
 function isOwner(){return USER&&USER.role==='owner'}
@@ -46,14 +46,28 @@ function dow(ds){return new Date(toUTC(ds)).getUTCDay()}
 function fmtD(ds,o){return new Date(toUTC(ds)).toLocaleDateString('id-ID',Object.assign({day:'numeric',month:'short',year:'numeric',timeZone:'UTC'},o||{}))}
 function nights(ci,co){var a=[],d=ci,g=0;while(d<co&&g<400){a.push(d);d=addDays(d,1);g++}return a}
 function isHigh(ds){return D.highSeason.some(function(r){return ds>=r.start&&ds<=r.end})}
-function isWeekend(ds){var w=dow(ds);return w===5||w===6}
-function rate(v,ds){
-  if(isHigh(ds)&&v.priceHigh)return{p:v.priceHigh,t:'high'};
-  if(isWeekend(ds)&&v.priceWeekend)return{p:v.priceWeekend,t:'weekend'};
+/* Tanggal merah (libur nasional, SKB 3 Menteri). Bisa ditambah/hapus di admin tab High Season & Tgl Merah. */
+var DEF_HOL=[{date:'2026-12-25',label:'Natal'},{date:'2027-01-01',label:'Tahun Baru 2027'},{date:'2027-01-05',label:'Isra Mikraj'},{date:'2027-02-06',label:'Imlek'},{date:'2027-03-08',label:'Nyepi'},{date:'2027-03-10',label:'Idulfitri'},{date:'2027-03-11',label:'Idulfitri'},{date:'2027-03-26',label:'Wafat Yesus Kristus'},{date:'2027-03-28',label:'Paskah'},{date:'2027-05-01',label:'Hari Buruh'},{date:'2027-05-06',label:'Kenaikan Yesus Kristus'},{date:'2027-05-17',label:'Iduladha'},{date:'2027-05-20',label:'Waisak'},{date:'2027-06-01',label:'Hari Lahir Pancasila'},{date:'2027-06-06',label:'Tahun Baru Islam'},{date:'2027-08-15',label:'Maulid Nabi'},{date:'2027-08-17',label:'HUT RI'},{date:'2027-12-25',label:'Natal'},{date:'2027-12-26',label:'Isra Mikraj'}];
+function isHol(ds){return (D.holidays||[]).some(function(h){return h.date===ds})}
+function isXmas(ds){var md=ds.slice(5);return md==='12-24'||md==='12-25'}
+/* Jenis harga per MALAM:
+   high season (rentang di admin) > Natal (malam 24 & 25 Des = weekend) > Sabtu = weekend >
+   Jumat, atau malam sebelum tanggal merah (Minggu–Kamis) = semi weekend > sisanya weekday */
+function dayType(ds){var w=dow(ds);
+  if(isHigh(ds))return 'high';
+  if(isXmas(ds)||w===6)return 'weekend';
+  if(w===5||isHol(addDays(ds,1)))return 'semi';
+  return 'weekday'}
+function isWeekend(ds){var t=dayType(ds);return t==='weekend'||t==='semi'}
+function semiPrice(v){if(v.priceSemi)return v.priceSemi;var a=v.priceWeekday,b=v.priceWeekend;if(a&&b)return Math.round((a+b)/2/50000)*50000;return b||a||0}
+function rate(v,ds){var t=dayType(ds);
+  if(t==='high'){if(v.priceHigh)return{p:v.priceHigh,t:'high'};t=dow(ds)===6||isXmas(ds)?'weekend':(dow(ds)===5||isHol(addDays(ds,1))?'semi':'weekday')}
+  if(t==='weekend'&&v.priceWeekend)return{p:v.priceWeekend,t:'weekend'};
+  if(t==='weekend'||t==='semi'){var sp=semiPrice(v);if(sp)return{p:sp,t:'semi'}}
   return{p:v.priceWeekday||v.priceWeekend||0,t:'weekday'};
 }
-function quote(v,ns){var t=0,c={weekday:0,weekend:0,high:0};ns.forEach(function(d){var r=rate(v,d);t+=r.p;c[r.t]++});return{total:t,c:c,avg:ns.length?t/ns.length:0}}
-function minRate(v){var a=[v.priceWeekday,v.priceWeekend,v.priceHigh].filter(function(x){return x>0});return a.length?Math.min.apply(null,a):0}
+function quote(v,ns){var t=0,c={weekday:0,semi:0,weekend:0,high:0};ns.forEach(function(d){var r=rate(v,d);t+=r.p;c[r.t]++});return{total:t,c:c,avg:ns.length?t/ns.length:0}}
+function minRate(v){var a=[v.priceWeekday,v.priceSemi,v.priceWeekend,v.priceHigh].filter(function(x){return x>0});return a.length?Math.min.apply(null,a):0}
 function isFree(v,ns){var s={};(D.booked[v.id]||[]).forEach(function(d){s[d]=1});return ns.every(function(d){return !s[d]})}
 function waNum(){var n=(D.settings.wa||'').replace(/\D/g,'');if(n.charAt(0)==='0')n='62'+n.slice(1);else if(n.charAt(0)==='8')n='62'+n;return n}
 function waLink(text){return 'https://wa.me/'+waNum()+'?text='+encodeURIComponent(text)}
@@ -135,7 +149,7 @@ function bindPhotos(root){
 function card(i,ns,g,isOver){
   var v=i.v,q=i.q,s=D.settings,ph=goodPhotos(v);
   var photos=ph.length?'<div class="phw"><div class="ph">'+ph.map(function(p,k){return '<img src="'+imgSrc(p)+'" alt="'+esc(v.name)+' foto '+(k+1)+'" loading="lazy">'}).join('')+'</div>'+(ph.length>1?'<button type="button" class="phb prev" data-ph="-1" aria-label="Foto sebelumnya">‹</button><button type="button" class="phb next" data-ph="1" aria-label="Foto berikutnya">›</button><div class="phn"><span class="phi">1</span>/'+ph.length+' foto</div>':'')+'</div>':'<div class="ph none">'+esc((v.name||'V').charAt(0))+'</div>';
-  var parts=[];if(q.c.weekday)parts.push(q.c.weekday+' weekday');if(q.c.weekend)parts.push(q.c.weekend+' weekend');if(q.c.high)parts.push(q.c.high+' high season');
+  var parts=[];if(q.c.weekday)parts.push(q.c.weekday+' weekday');if(q.c.semi)parts.push(q.c.semi+' semi weekend');if(q.c.weekend)parts.push(q.c.weekend+' weekend');if(q.c.high)parts.push(q.c.high+' high season');
   var price=s.priceMode==='from'
     ?'<div class="price"><small>mulai dari</small><b>'+rp(minRate(v))+'</b><small>per malam</small></div>'
     :'<div class="price"><small>Estimasi '+ns.length+' malam</small><b>'+rp(q.total)+'</b><small>'+parts.join(' · ')+'</small></div>';
@@ -154,7 +168,7 @@ function matchQ(v){var q=A.q.trim().toLowerCase();return !q||String(v.name||'').
 function markDirty(){dirty=true;var st=$('#st');if(st){st.className='st d';st.textContent='Ada perubahan yang belum disimpan'}}
 function renderAdmin(){
   app.innerHTML='<div class="abar"><div class="wrap"><span class="t">Admin · '+esc(D.settings.brand)+'</span><span class="who">👤 '+esc(USER?USER.name:'')+(isOwner()?' (Pemilik)':isMitra()?' (Mitra)':' (Admin)')+'</span><span id="st" class="st'+(dirty?' d':'')+'">'+(dirty?'Ada perubahan yang belum disimpan':'Semua tersimpan')+'</span><a href="/" target="_blank">Lihat halaman tamu</a><a href="#" id="logout">Keluar</a><button class="btn primary" id="saveBtn">Simpan &amp; Publikasikan</button></div></div>'+
-   '<div class="wrap"><div class="tabs">'+(isMitra()?[['villa','Villa Saya'],['cal','Jadwal']]:[['villa','Villa'],['dup','Verifikasi'+(pendingCount()?' ('+pendingCount()+')':'')],['cal','Tanggal Terisi'],['hs','High Season'],['set','Pengaturan']]).concat(isOwner()?[['log','Riwayat']]:[]).map(function(t){return '<button data-tab="'+t[0]+'" class="'+(A.tab===t[0]?'on':'')+'">'+t[1]+'</button>'}).join('')+'</div><div id="pane"></div></div>';
+   '<div class="wrap"><div class="tabs">'+(isMitra()?[['villa','Villa Saya'],['cal','Jadwal']]:[['villa','Villa'],['dup','Verifikasi'+(pendingCount()?' ('+pendingCount()+')':'')],['cal','Tanggal Terisi'],['hs','High Season & Tgl Merah'],['set','Pengaturan']]).concat(isOwner()?[['log','Riwayat']]:[]).map(function(t){return '<button data-tab="'+t[0]+'" class="'+(A.tab===t[0]?'on':'')+'">'+t[1]+'</button>'}).join('')+'</div><div id="pane"></div></div>';
   $$('[data-tab]').forEach(function(b){b.addEventListener('click',function(){A.tab=b.dataset.tab;renderAdmin()})});
   $('#saveBtn').addEventListener('click',save);
   $('#logout').onclick=function(e){e.preventDefault();if(dirty&&!window.confirm('Ada perubahan belum disimpan. Tetap keluar?'))return;setTok('');USER=null;PRIV={};PRIV_DIRTY={};dirty=false;renderLogin()};
@@ -218,7 +232,7 @@ function paneDup(p){
 var XLSX_P=null;
 function loadXLSX(){if(window.XLSX)return Promise.resolve(window.XLSX);if(!XLSX_P)XLSX_P=new Promise(function(res,rej){var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=function(){window.XLSX?res(window.XLSX):rej()};sc.onerror=function(){XLSX_P=null;rej()};document.head.appendChild(sc)});return XLSX_P}
 var PCOLS={ownerName:['namapemilik','pemilik','pemilikvilla'],ownerPhone:['nohppemilik','nopemilik','hppemilik','nomorpemilik','wapemilik','nowapemilik','telppemilik'],ownerNote:['catatanpemilik']};
-var COLS={name:['nama','namavilla','villa'],location:['lokasi','alamat','area'],bedrooms:['kamar','jumlahkamar','kamartidur'],bathrooms:['kamarmandi','km'],capStd:['kapasitasnormal','kapasitas','kapasitasstandar'],capMax:['kapasitasmaks','kapasitasmaksimal','kapasitasmax','maks'],priceWeekday:['hargaweekday','weekday'],priceWeekend:['hargaweekend','weekend'],priceHigh:['hargahighseason','highseason','hargahs'],facilities:['fasilitas'],desc:['deskripsi','keterangan'],active:['tampil','aktif']};
+var COLS={name:['nama','namavilla','villa'],location:['lokasi','alamat','area'],bedrooms:['kamar','jumlahkamar','kamartidur'],bathrooms:['kamarmandi','km'],capStd:['kapasitasnormal','kapasitas','kapasitasstandar'],capMax:['kapasitasmaks','kapasitasmaksimal','kapasitasmax','maks'],priceWeekday:['hargaweekday','weekday'],priceSemi:['hargasemiweekend','semiweekend','hargasemi','semi'],priceWeekend:['hargaweekend','weekend'],priceHigh:['hargahighseason','highseason','hargahs'],facilities:['fasilitas'],desc:['deskripsi','keterangan'],active:['tampil','aktif']};
 function normKey(k){return String(k).toLowerCase().replace(/[^a-z0-9]/g,'')}
 function cellNum(x){return typeof x==='number'?Math.round(x):num(x)}
 function parseRows(rows){
@@ -227,7 +241,7 @@ function parseRows(rows){
     if(!o.name||!String(o.name).trim())return;
     var v={name:String(o.name).trim()};
     if(o.location!=null)v.location=String(o.location).trim();
-    ['bedrooms','bathrooms','capStd','capMax','priceWeekday','priceWeekend','priceHigh'].forEach(function(f){if(o[f]!=null)v[f]=cellNum(o[f])});
+    ['bedrooms','bathrooms','capStd','capMax','priceWeekday','priceSemi','priceWeekend','priceHigh'].forEach(function(f){if(o[f]!=null)v[f]=cellNum(o[f])});
     if(o.facilities!=null)v.facilities=String(o.facilities).split(/[,;\/\n]+/).map(function(x){return x.trim()}).filter(Boolean);
     if(o.desc!=null)v.desc=String(o.desc).trim();
     var pr={};Object.keys(PCOLS).forEach(function(f){for(var i=0;i<PCOLS[f].length;i++){var c=PCOLS[f][i];if(m.hasOwnProperty(c)&&String(m[c]).trim()!==''){pr[f]=String(m[c]).trim();break}}});
@@ -237,7 +251,7 @@ function parseRows(rows){
   return out;
 }
 function importExcel(){
-  var m=modal('<h2>Import villa dari Excel</h2><p class="hint">Baris pertama harus judul kolom. Kolom yang dibaca: <b>Nama</b>, Lokasi, Kamar, Kamar Mandi, Kapasitas Normal, Kapasitas Maks, Harga Weekday, Harga Weekend, Harga High Season, Fasilitas (pisah pakai koma), Deskripsi, Tampil (Ya/Tidak).</p><p class="hint">Villa yang namanya sudah ada akan <b>diupdate</b> (foto & tanggal terisi tetap aman). Nama baru akan <b>ditambahkan</b>. Villa yang nggak ada di file <b>nggak dihapus</b>.</p><input type="file" id="xf" accept=".xlsx,.xls,.csv"><div id="xr" style="margin-top:12px"></div><div class="mf"><button class="btn" data-x>Batal</button><button class="btn primary" data-ok disabled>Import</button></div>');
+  var m=modal('<h2>Import villa dari Excel</h2><p class="hint">Baris pertama harus judul kolom. Kolom yang dibaca: <b>Nama</b>, Lokasi, Kamar, Kamar Mandi, Kapasitas Normal, Kapasitas Maks, Harga Weekday, Harga Semi Weekend, Harga Weekend, Harga High Season, Fasilitas (pisah pakai koma), Deskripsi, Tampil (Ya/Tidak).</p><p class="hint">Villa yang namanya sudah ada akan <b>diupdate</b> (foto & tanggal terisi tetap aman). Nama baru akan <b>ditambahkan</b>. Villa yang nggak ada di file <b>nggak dihapus</b>.</p><input type="file" id="xf" accept=".xlsx,.xls,.csv"><div id="xr" style="margin-top:12px"></div><div class="mf"><button class="btn" data-x>Batal</button><button class="btn primary" data-ok disabled>Import</button></div>');
   var parsed=null;
   $('[data-x]',m).onclick=function(){m.remove()};
   $('#xf',m).onchange=function(e){var f=e.target.files[0];if(!f)return;$('#xr',m).innerHTML='<p class="hint">Membaca file…</p>';
@@ -261,7 +275,7 @@ function compress(file){return new Promise(function(res,rej){var url=URL.createO
 
 function editVilla(id){
   var orig=id?D.villas.find(function(v){return v.id===id}):null;
-  var v=orig?JSON.parse(JSON.stringify(orig)):{id:uid(),name:'',location:'',bedrooms:'',bathrooms:'',capStd:'',capMax:'',priceWeekday:'',priceWeekend:'',priceHigh:'',facilities:[],desc:'',photos:[],active:true};
+  var v=orig?JSON.parse(JSON.stringify(orig)):{id:uid(),name:'',location:'',bedrooms:'',bathrooms:'',capStd:'',capMax:'',priceWeekday:'',priceSemi:'',priceWeekend:'',priceHigh:'',facilities:[],desc:'',photos:[],active:true};
   if(!orig&&isMitra()){v.ownerAcc=USER.id;v.status='pending'}
   var pv=Object.assign({},PRIV[v.id]||{});
   var mitras=ACCS.filter(function(a){return a.type==='mitra'});
@@ -273,8 +287,8 @@ function editVilla(id){
     '<label>Kamar mandi<input data-n="bathrooms" inputmode="numeric" value="'+esc(v.bathrooms)+'"></label>'+
     '<label>Kapasitas normal<input data-n="capStd" inputmode="numeric" value="'+esc(v.capStd)+'" placeholder="orang"></label>'+
     '<label>Kapasitas maksimal<input data-n="capMax" inputmode="numeric" value="'+esc(v.capMax)+'" placeholder="dgn extra bed"></label>'+
-    money(v.priceWeekday,'priceWeekday','Harga weekday','/malam')+money(v.priceWeekend,'priceWeekend','Harga weekend','Jum & Sab malam')+
-    money(v.priceHigh,'priceHigh','Harga high season','opsional')+'<div></div>'+
+    money(v.priceWeekday,'priceWeekday','Harga weekday','Min–Kam malam')+money(v.priceSemi,'priceSemi','Harga semi weekend','Jumat & malam sblm tgl merah')+
+    money(v.priceWeekend,'priceWeekend','Harga weekend','Sabtu & Natal')+money(v.priceHigh,'priceHigh','Harga high season','opsional')+
     '<div class="full"><label style="margin-bottom:6px">Fasilitas</label><div class="pick" id="fac"></div><div class="row" style="margin-top:8px"><label style="flex:1"><input id="facIn" placeholder="Tambah fasilitas lain, lalu Enter"></label><button class="btn sm" id="facAdd" type="button">Tambah</button></div></div>'+
     '<label class="full"><span>Deskripsi singkat <span class="opt">(opsional)</span></span><textarea data-k="desc" rows="3" placeholder="Villa luas dengan kolam renang dan view gunung...">'+esc(v.desc)+'</textarea></label>'+
     '<div class="full"><label style="margin-bottom:6px"><span>Foto <span class="opt">(maks 6, foto pertama jadi cover)</span></span></label><div class="pg" id="pg"></div><input type="file" id="pf" accept="image/*" multiple hidden></div>'+
@@ -401,6 +415,27 @@ function paneHS(p){
   p.innerHTML='<div class="panel"><h2>High season</h2><p class="hint">Malam yang masuk rentang ini pakai harga high season (kalau villanya punya). Contoh: libur Natal & Tahun Baru, Lebaran, long weekend.</p><div class="row"><label>Nama<input id="hl" placeholder="Natal & Tahun Baru"></label><label>Malam pertama<input type="date" id="hs"></label><label>Malam terakhir<input type="date" id="he"></label><button class="btn primary" id="ha">Tambah</button></div><div id="her" class="err"></div><div class="rl" style="margin-top:14px">'+(list||'<p class="hint" style="margin:0">Belum ada high season.</p>')+'</div></div>';
   $('#ha',p).onclick=function(){var s=$('#hs',p).value,e=$('#he',p).value;if(!s||!e||e<s){$('#her',p).textContent='Isi tanggal dengan benar.';return}D.highSeason.push({id:uid(),label:$('#hl',p).value.trim(),start:s,end:e});markDirty();renderAdmin()};
   $$('[data-hd]',p).forEach(function(b){b.onclick=function(){D.highSeason=D.highSeason.filter(function(r){return r.id!==b.dataset.hd});markDirty();renderAdmin()}});
+  paneHol(p);
+}
+function paneHol(p){
+  var box=document.createElement('div');box.className='panel';p.appendChild(box);
+  var today=todayDS(),showOld=A.holOld;
+  var hs=(D.holidays||[]).slice().sort(function(a,b){return a.date<b.date?-1:1});
+  var vis=hs.filter(function(h){return showOld||h.date>=addDays(today,-1)});
+  var miss=DEF_HOL.filter(function(d){return d.date>=today&&!hs.some(function(h){return h.date===d.date})});
+  var yr='';
+  var list=vis.map(function(h){var y=h.date.slice(0,4),hd=y!==yr?'<div class="yh">'+y+'</div>':'';yr=y;var eve=addDays(h.date,-1),w=dow(h.date),et=dayType(eve);
+    var eff=w===0||w===6?'jatuh di akhir pekan, harga nggak berubah':(et==='semi'?'malam '+fmtD(eve,{weekday:'short',day:'numeric',month:'short',year:undefined})+' jadi <b>semi weekend</b>':et==='weekend'?'malam sebelumnya udah harga weekend':et==='high'?'malam sebelumnya udah high season':'');
+    return hd+'<div class="it"><span><b>'+fmtD(h.date,{weekday:'short'})+'</b> · '+esc(h.label||'Tanggal merah')+'<br><small class="hint">'+eff+'</small></span><button class="btn sm danger" data-hold="'+h.date+'">Hapus</button></div>'}).join('');
+  box.innerHTML='<h2>Tanggal merah</h2><p class="hint">Aturan harga per malam:<br>• <b>Minggu–Kamis</b> = weekday<br>• <b>Jumat</b> = semi weekend<br>• <b>Sabtu</b> = weekend<br>• Tanggal merah di hari kerja → <b>malam sebelumnya</b> jadi semi weekend<br>• <b>Natal</b> (malam 24 & 25 Des) = weekend<br>• Rentang <b>high season</b> di atas (misal tahun baru) ngalahin semuanya</p>'+
+    (miss.length?'<div class="note" style="margin-bottom:12px">Ada '+miss.length+' libur nasional (SKB 3 Menteri) yang belum masuk. <button class="btn sm" id="holFill">Masukin semua</button></div>':'')+
+    '<div class="row"><label>Nama<input id="holL" placeholder="Idulfitri / cuti bersama"></label><label>Tanggal<input type="date" id="holD"></label><button class="btn primary" id="holA">Tambah</button></div><div id="holE" class="err"></div>'+
+    '<div class="rl" style="margin-top:14px">'+(list||'<p class="hint" style="margin:0">Belum ada tanggal merah.</p>')+'</div>'+
+    '<p style="margin:10px 0 0"><a href="#" id="holOld">'+(showOld?'Sembunyikan tanggal yang udah lewat':'Lihat juga tanggal yang udah lewat')+'</a></p>';
+  $('#holA',box).onclick=function(){var d=$('#holD',box).value;if(!d){$('#holE',box).textContent='Pilih tanggalnya.';return}if(hs.some(function(h){return h.date===d})){$('#holE',box).textContent='Tanggal itu udah ada.';return}D.holidays.push({date:d,label:$('#holL',box).value.trim()});markDirty();renderAdmin()};
+  if($('#holFill',box))$('#holFill',box).onclick=function(){miss.forEach(function(d){D.holidays.push(Object.assign({},d))});markDirty();renderAdmin()};
+  $('#holOld',box).onclick=function(e){e.preventDefault();A.holOld=!A.holOld;renderAdmin()};
+  $$('[data-hold]',box).forEach(function(b){b.onclick=function(){D.holidays=D.holidays.filter(function(h){return h.date!==b.dataset.hold});markDirty();renderAdmin()}});
 }
 
 function paneSet(p){
@@ -431,7 +466,7 @@ function flushPhotoDel(){var q=PHOTO_DEL.splice(0);q.reduce(function(pr,u){retur
 function merge3(base,mine,latest){
   var J=function(x){return JSON.stringify(x===undefined?null:x)};
   var out=JSON.parse(JSON.stringify(latest));
-  ['settings','highSeason','syncInfo'].forEach(function(k){if(J(mine[k])!==J(base[k]))out[k]=mine[k]});
+  ['settings','highSeason','holidays','syncInfo'].forEach(function(k){if(J(mine[k])!==J(base[k]))out[k]=mine[k]});
   ['booked','synced'].forEach(function(k){var b=base[k]||{},m=mine[k]||{},o=out[k]=out[k]||{};
     Object.keys(Object.assign({},b,m)).forEach(function(id){if(J(m[id])!==J(b[id])){if(m[id]&&m[id].length)o[id]=m[id];else delete o[id]}})});
   var bm={},mm={};(base.villas||[]).forEach(function(v){bm[v.id]=v});(mine.villas||[]).forEach(function(v){mm[v.id]=v});
