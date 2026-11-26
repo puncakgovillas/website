@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261126b';
+var APP_VER='20261126c';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -193,7 +193,7 @@ function paneVilla(p){
     var gp=goodPhotos(v),th=gp[0]?'<img src="'+gp[0]+'" alt="" loading="lazy">':'<div class="th">'+esc((v.name||'V').charAt(0))+'</div>';
     return '<div class="vi">'+th+'<div class="inf"><b>'+esc(v.name)+(v.status?'':'<span class="badge'+(v.active!==false?' on':'')+'">'+(v.active!==false?'Tampil':'Disembunyikan')+'</span>')+statusBadge(v)+(!isMitra()&&v.ownerAcc?'<span class="badge mit">Mitra'+(accName(v.ownerAcc)?': '+esc(accName(v.ownerAcc)):(isOwner()?': akun dihapus':''))+'</span>':'')+'</b><span>'+(v.bedrooms||'-')+' kamar · '+(v.capStd||'-')+'–'+capOf(v)+' orang · WD '+rp(v.priceWeekday)+' · WE '+rp(v.priceWeekend)+(v.priceHigh?' · HS '+rp(v.priceHigh):'')+'</span>'+(canOwner()&&PRIV[v.id]&&(PRIV[v.id].ownerName||PRIV[v.id].ownerPhone)?'<span class="own">🔒 Pemilik: <b>'+esc(PRIV[v.id].ownerName||'-')+'</b>'+(PRIV[v.id].ownerPhone?' · <a href="'+waOwner(PRIV[v.id].ownerPhone)+'" target="_blank" rel="noopener">'+esc(PRIV[v.id].ownerPhone)+'</a>':'')+'</span>':'')+(v.status==='pending'&&isMitra()?'<span class="upd">'+(DUPS[v.id]&&DUPS[v.id].possibleDup?'⚠️ Villa ini kemungkinan sudah terdaftar. Admin PuncakGoVillas lagi ngecek dulu.':'Belum tampil ke tamu sampai disetujui admin.')+'</span>':'')+(v.status==='pending'&&!isMitra()?'<span class="upd"><a href="#" data-gover>⏳ Belum tampil ke tamu · cek di tab Verifikasi</a></span>':'')+(v.status==='rejected'?'<span class="upd">Ditolak'+(v.rejectNote?': '+esc(v.rejectNote):'')+'</span>'+(v.photosCleaned?'<span class="upd">🗑️ Fotonya udah dihapus otomatis '+fmtTime(v.photosCleaned)+'</span>':(v.rejectedAt&&(v.photos||[]).length?'<span class="upd">🗑️ Foto dihapus otomatis mulai '+fmtD(toDS(Date.parse(v.rejectedAt)+30*864e5))+'</span>':'')):'')+(v.updatedBy?'<span class="upd">Terakhir diubah <b>'+esc(v.updatedBy)+'</b> · '+fmtTime(v.updatedAt)+'</span>':'')+'</div><div class="act"><button class="btn sm" data-edit="'+v.id+'">Edit</button>'+(v.status==='rejected'&&!isMitra()?'<button class="btn sm danger" data-purge="'+v.id+'">Hapus permanen</button>':'<button class="btn sm danger" data-del="'+v.id+'">Hapus</button>')+'</div></div>';
   }).join('')}
-  p.innerHTML='<div class="panel"><div class="row" style="justify-content:space-between;align-items:center"><div><h2>'+(isMitra()?'Villa Saya':'Daftar Villa')+' ('+myVillas().length+')</h2><p class="hint" style="margin:0">Data villa yang tampil ke tamu.</p></div><div class="row">'+(isMitra()?'':'<button class="btn" id="bulkV">Upload Folder / PDF</button><button class="btn" id="impV">Import Excel</button>')+'<button class="btn primary" id="addV">+ Tambah Villa</button></div></div>'+'<div class="srch" style="margin-top:14px"><input id="vq" type="search" placeholder="🔍 Cari nama villa atau lokasi…" value="'+esc(A.q)+'" autocomplete="off"></div>'+'<div class="vl" id="vl" style="margin-top:14px"></div></div>';
+  p.innerHTML='<div class="panel"><div class="row" style="justify-content:space-between;align-items:center"><div><h2>'+(isMitra()?'Villa Saya':'Daftar Villa')+' ('+myVillas().length+')</h2><p class="hint" style="margin:0">Data villa yang tampil ke tamu.</p></div><div class="row">'+'<button class="btn" id="bulkV">Upload Folder / PDF</button>'+(isMitra()?'':'<button class="btn" id="impV">Import Excel</button>')+'<button class="btn primary" id="addV">+ Tambah Villa</button></div></div>'+'<div class="srch" style="margin-top:14px"><input id="vq" type="search" placeholder="🔍 Cari nama villa atau lokasi…" value="'+esc(A.q)+'" autocomplete="off"></div>'+'<div class="vl" id="vl" style="margin-top:14px"></div></div>';
   function fill(){var h=rows();$('#vl',p).innerHTML=h||(myVillas().length?'<p class="hint">Nggak ada villa yang cocok.</p>':'<div class="empty"><b>Belum ada villa</b>Klik "Tambah Villa" buat mulai'+(isMitra()?' upload villa kamu.':' (atau "Import Excel").')+'</div>');bind()}
   var vq=$('#vq',p);if(vq)vq.addEventListener('input',function(){A.q=vq.value;fill()});
   $('#addV').addEventListener('click',function(){editVilla(null)});
@@ -353,23 +353,24 @@ function bulkUpload(){
   $('[data-x]',m).onclick=function(){if(running&&!window.confirm('Upload masih jalan. Villa yang udah selesai tetap tersimpan. Berhenti sekarang?'))return;running=false;m.remove();renderAdmin()};
   $('#buF',m).onclick=function(){$('#buFi',m).click()};$('#buP',m).onclick=function(){$('#buPi',m).click()};
   function picked(files,mode){groups=buGroup([].slice.call(files),mode);
-    var idx={};D.villas.forEach(function(v){idx[buKey(v.name)]=v});
+    var idx={};myVillas().forEach(function(v){idx[buKey(v.name)]=v});
     groups.forEach(function(g){var nm=buName(g.src);g.name=nm.name;g.kamarFromName=nm.kamar;g.match=idx[buKey(g.name)]||null});
     if(!groups.length){$('#buL',m).innerHTML='';$('#buE',m).textContent=mode==='pdf'?'Nggak ada file PDF yang kepilih.':'Di folder itu nggak ketemu foto (JPG/PNG) atau PDF. Pastiin isinya subfolder per villa.';$('[data-ok]',m).disabled=true;return}
     $('#buE',m).textContent='';$('#buO',m).style.display='';
-    $('#buL',m).innerHTML='<p class="hint" style="margin:0 0 6px">'+groups.length+' villa ketemu. Nama bisa diedit dulu sebelum mulai. Villa yang namanya sama dengan yang udah ada bakal <b>diupdate</b> (data yang udah diisi nggak ditimpa, cuma yang kosong yang dilengkapin).</p><div class="bul">'+groups.map(function(g,i){return '<div class="bur" data-i="'+i+'"><input value="'+esc(g.name)+'" data-nm="'+i+'"><span class="badge'+(g.match?'':' on')+'">'+(g.match?'Update':'Baru')+'</span><span class="bus">'+(g.imgs.length?g.imgs.length+' foto':'')+(g.pdf?(g.imgs.length?' + ':'')+'PDF':'')+(g.skipped.length?' · '+g.skipped.length+' HEIC dilewati':'')+'</span></div>'}).join('')+'</div>';
-    $$('[data-nm]',m).forEach(function(inp){inp.oninput=function(){var g=groups[+inp.dataset.nm];g.name=inp.value.trim();g.match=D.villas.find(function(v){return buKey(v.name)===buKey(g.name)})||null;var b=inp.parentNode.querySelector('.badge');b.className='badge'+(g.match?'':' on');b.textContent=g.match?'Update':'Baru'}});
+    $('#buL',m).innerHTML='<p class="hint" style="margin:0 0 6px">'+groups.length+' villa ketemu. Nama bisa diedit dulu sebelum mulai. Villa yang namanya sama dengan yang udah ada bakal <b>diupdate</b> (data yang udah diisi nggak ditimpa, cuma yang kosong yang dilengkapin).</p><div class="bul">'+groups.map(function(g,i){return '<div class="bur" data-i="'+i+'"><input value="'+esc(g.name)+'" data-nm="'+i+'">'+(isMitra()?'<input data-ph="'+i+'" inputmode="tel" placeholder="No. HP pemilik villa" style="max-width:170px'+(g.match?';display:none':'')+'">':'')+'<span class="badge'+(g.match?'':' on')+'">'+(g.match?'Update':'Baru')+'</span><span class="bus">'+(g.imgs.length?g.imgs.length+' foto':'')+(g.pdf?(g.imgs.length?' + ':'')+'PDF':'')+(g.skipped.length?' · '+g.skipped.length+' HEIC dilewati':'')+'</span></div>'}).join('')+'</div>';
+    $$('[data-nm]',m).forEach(function(inp){inp.oninput=function(){var g=groups[+inp.dataset.nm];g.name=inp.value.trim();g.match=myVillas().find(function(v){return buKey(v.name)===buKey(g.name)})||null;var b=inp.parentNode.querySelector('.badge');b.className='badge'+(g.match?'':' on');b.textContent=g.match?'Update':'Baru';var ph=inp.parentNode.querySelector('[data-ph]');if(ph)ph.style.display=g.match?'none':''}});
+    $$('[data-ph]',m).forEach(function(inp){inp.oninput=function(){groups[+inp.dataset.ph].phone=inp.value.trim()}});
     $('[data-ok]',m).disabled=false}
   $('#buFi',m).onchange=function(){picked(this.files,'folder');this.value=''};
   $('#buPi',m).onchange=function(){picked(this.files,'pdf');this.value=''};
-  $('[data-ok]',m).onclick=function(){if(running)return;running=true;var phMode=$('#buPh',m).value,over=$('#buDt',m).value==='over';$('[data-ok]',m).disabled=true;$('#buF',m).disabled=$('#buP',m).disabled=true;$$('[data-nm]',m).forEach(function(i){i.disabled=true});
+  $('[data-ok]',m).onclick=function(){if(running)return;if(isMitra()){var kosong=groups.filter(function(g){return g.name&&!g.match&&String(g.phone||'').replace(/\D/g,'').length<9});if(kosong.length){$('#buE',m).textContent='Isi dulu No. HP pemilik villa buat: '+kosong.map(function(g){return g.name}).join(', ');return}$('#buE',m).textContent=''}running=true;var phMode=$('#buPh',m).value,over=$('#buDt',m).value==='over';$('[data-ok]',m).disabled=true;$('#buF',m).disabled=$('#buP',m).disabled=true;$$('[data-nm]',m).forEach(function(i){i.disabled=true});
     var done=0,fails=0,report=[];
     function stat(i,txt,cls){var r=$('.bur[data-i="'+i+'"] .bus',m);if(r){r.textContent=txt;r.className='bus'+(cls?' '+cls:'')}}
     function one(i){if(!running)return Promise.resolve();if(i>=groups.length)return Promise.resolve();var g=groups[i];if(!g.name){stat(i,'dilewati (nama kosong)','bad');return one(i+1)}
       stat(i,'membaca…');var info=null,pdfDoc=null,photoPages=[];
       var pre=g.pdf?buReadPDF(g.pdf).then(function(r){pdfDoc=r.doc;photoPages=r.photoPages;info=buParse(r.lines,g.pdf.name)}).catch(function(){info=null}):Promise.resolve();
       return pre.then(function(){
-        var v=g.match||D.villas.find(function(x){return buKey(x.name)===buKey(g.name)});var isNew=!v;
+        var v=g.match||myVillas().find(function(x){return buKey(x.name)===buKey(g.name)});var isNew=!v;
         if(isNew){v={id:uid(),name:g.name,location:'',bedrooms:'',bathrooms:'',capStd:'',capMax:'',priceWeekday:'',priceSemi:'',priceWeekend:'',priceHigh:'',facilities:[],desc:'',photos:[],active:true}}
         var cur=(v.photos||[]).slice();if(!isNew&&phMode==='replace')cur=[];var slots=(isNew||phMode!=='keep')?Math.max(0,6-cur.length):0;
         var pool=g.imgs.map(function(f){return {file:f}});if(!pool.length&&pdfDoc)pool=photoPages.map(function(p){return {page:p}});
@@ -389,13 +390,13 @@ function bulkUpload(){
           if(d.we&&(isNew||over||!v.priceHigh))v.priceHigh=d.we+1000000;
           if(d.fas&&d.fas.length&&(isNew||over||!(v.facilities||[]).length))v.facilities=d.fas;
           var miss=[];if(!v.priceWeekday&&!v.priceWeekend)miss.push('harga');if(!v.capStd&&!v.capMax)miss.push('kapasitas');
-          if(isNew){if(miss.length)v.active=false;if(isMitra()){v.ownerAcc=USER.id;v.status='pending'}D.villas.push(v)}
+          if(isNew){if(miss.length)v.active=false;if(isMitra()){v.ownerAcc=USER.id;v.status='pending';var op={ownerName:'',ownerPhone:g.phone||'',ownerNote:''};PRIV_DIRTY[v.id]=op;PRIV[v.id]=op}D.villas.push(v)}
           markDirty();done++;
           stat(i,(isNew?'✓ ditambah':'✓ diupdate')+' · '+up.length+' foto'+(miss.length?' · ⚠️ belum ada '+miss.join(' & ')+(isNew?' (disembunyiin dulu)':''):'')+(d.weGuess?' · harga weekend dari nama file':'')+(d.fas&&d.fas.length?' · '+d.fas.length+' fasilitas':'')+pickInfo,miss.length?'warn':'ok');
           if(miss.length)report.push(g.name+': '+miss.join(' & '))})})
       }).catch(function(e){fails++;stat(i,'gagal: '+(e&&e.message||'error'),'bad')}).then(function(){if(pdfDoc){try{pdfDoc.destroy()}catch(e){}}return one(i+1)})}
     one(0).then(function(){running=false;$('#buF',m).disabled=$('#buP',m).disabled=false;
-      $('#buE',m).innerHTML='<span style="color:var(--green)">Selesai: '+done+' villa'+(fails?', '+fails+' gagal':'')+'. Udah kesimpen otomatis.</span>'+(report.length?'<br><span style="color:var(--ink)">Villa baru yang belum ada harga/kapasitas aku <b>sembunyiin dulu</b> dari tamu, lengkapin lewat tombol Edit ya.</span>':'');
+      $('#buE',m).innerHTML='<span style="color:var(--green)">Selesai: '+done+' villa'+(fails?', '+fails+' gagal':'')+'. Udah kesimpen otomatis.</span>'+(isMitra()?'<br><span style="color:var(--ink)">Villa baru belum tampil ke tamu sampai disetujui admin PuncakGoVillas.</span>':'')+(report.length?'<br><span style="color:var(--ink)">Villa baru yang belum ada harga/kapasitas aku <b>sembunyiin dulu</b> dari tamu, lengkapin lewat tombol Edit ya.</span>':'');
       $('[data-x]',m).textContent='Selesai'})};
 }
 var XLSX_P=null;
