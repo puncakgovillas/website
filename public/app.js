@@ -273,6 +273,13 @@ function buParse(lines,fileName){var o={kamar:0,mandi:0,kap:0,wd:0,we:0,semi:0,l
   if(st>=0){all.slice(st).split('\n').forEach(function(l){l.split(/\s{3,}/).forEach(function(c){c=c.trim();if(!/^[•·▪●○✓✔√\-−–*-]/.test(c))return;var it=c.replace(/^[•·▪●○✓✔√\-−–*-\s]+/,'').replace(/[.,"”]+$/,'').trim();
     if(!it||/rp|=|klik|http|catering|catring|kambing|organ|orgen|extra b|balon|testimoni|menyediakan|layanan|^\d+\.|instagram|tiktok|youtube|^wa /i.test(it))return;if(/^\d+\s*kamar\s*(tidur|mandi)|^max|^\d+\s*lantai$|^kapasitas|^fasilitas/i.test(it))return;
     it=it.replace(/,?\s*max\s*\d+.*$/i,'').replace(/[,\/]/g,' ').replace(/\s+/g,' ').trim();if(it&&o.fas.map(function(x){return x.toLowerCase()}).indexOf(it.toLowerCase())<0)o.fas.push(it)})})}
+  /* Desain spek baru: fasilitas berupa daftar/kotak tanpa tanda bullet. Ambil semua sel teks di bawah judul "Fasilitas" sampai ketemu judul lain */
+  var fi=-1;lines.forEach(function(c,k){if(fi<0&&c.some(function(x){return /^fasilitas\b/i.test(x)}))fi=k});
+  if(fi>=0){for(var q=fi;q<lines.length;q++){var stop=false;lines[q].forEach(function(cell){
+      cell.split(/\s{2,}|\s*[•·▪●○✓✔√|]\s*/).forEach(function(c){c=c.replace(/^fasilitas\s*(villa)?\s*:?/i,'').replace(/^[\-−–*\ue000-\uf8ff\s]+/,'').replace(/[.,"”:]+$/,'').trim();
+        if(q>fi&&/^(layanan|tambahan|harga|catatan|note|hubungi|kontak|contact|booking|reservasi|syarat|ketentuan|check.?in|alamat|lokasi|kapasitas|weekday|weekend)\b/i.test(c)){stop=true;return}
+        if(!c||c.length<3||c.length>40||/rp|=|\d{3,}|http|@|klik|instagram|tiktok|youtube|wa\b|^\d+\.|catering|catring|kambing|organ|orgen|extra b|balon|^max|^\d+\s*(kamar|orang|lantai)|^fasilitas|puncakgovillas/i.test(c))return;
+        c=c.replace(/\s+/g,' ');if(o.fas.map(function(x){return x.toLowerCase()}).indexOf(c.toLowerCase())<0)o.fas.push(c)})});if(stop)break}}
   if(!o.we){var fp=/^\s*(\d+)[.,]?(\d)?/.exec(fileName||'');if(fp&&+fp[1]<50){o.we=+fp[1]*1e6+(+(fp[2]||0))*1e5;o.weGuess=true}}
   return o}
 /* Buka PDF: ambil data dari halaman terakhir yang ada harganya; halaman lain = foto */
@@ -280,9 +287,42 @@ function buReadPDF(file){return loadPDFJS().then(function(pdfjs){return file.arr
   var n=doc.numPages,specPage=n,tries=[n,n-1,n-2].filter(function(x){return x>=1});
   function tryPage(k){if(k>=tries.length)return Promise.resolve(null);return doc.getPage(tries[k]).then(buPageLines).then(function(lines){var txt=lines.map(function(c){return c.join(' ')}).join(' ');if(/rp\s*[\d.]{6}|kamar\s*tidur|fasilitas/i.test(txt)){specPage=tries[k];return lines}return tryPage(k+1)})}
   return tryPage(0).then(function(lines){var photoPages=[];for(var p=1;p<=n;p++)if(p!==specPage)photoPages.push(p);return {doc:doc,lines:lines||[],photoPages:photoPages}})})})}
-function buRenderPage(doc,p){return doc.getPage(p).then(function(page){var v=page.getViewport({scale:1}),sc=Math.min(3,1280/Math.max(v.width,v.height)),vp=page.getViewport({scale:sc}),c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
-  return page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise.then(function(){return new Promise(function(res,rej){c.toBlob(function(b){b?res(b):rej(new Error('render'))},'image/jpeg',0.8)})})})}
+function buRenderPage(doc,p,max){max=max||1280;return doc.getPage(p).then(function(page){var v=page.getViewport({scale:1}),sc=Math.min(3,max/Math.max(v.width,v.height)),vp=page.getViewport({scale:sc}),c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+  return page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise.then(function(){return new Promise(function(res,rej){c.toBlob(function(b){b?res(b):rej(new Error('render'))},'image/jpeg',max<600?0.7:0.8)})})})}
+
+/* ===== Pilih foto otomatis pakai AI (CLIP, jalan di browser) =====
+   Utamakan: kolam renang, ruang tengah, halaman/view, fasilitas (billiard/karaoke), kamar tidur. Kamar mandi & halaman teks dihindari. */
+var CLIP_P=null;
+var BU_LABELS=[
+  ['pool','a photo of a swimming pool at a villa'],
+  ['living','a photo of a living room with sofas'],
+  ['view','a photo of a garden lawn or mountain view outside a villa'],
+  ['view','a photo of the front of a villa building'],
+  ['facility','a photo of a billiard pool table'],
+  ['facility','a photo of a karaoke room with a TV and speakers'],
+  ['facility','a photo of a gazebo or playground'],
+  ['kitchen','a photo of a kitchen or dining table'],
+  ['bedroom','a photo of a bedroom with a bed'],
+  ['bathroom','a photo of a bathroom with a toilet or shower'],
+  ['text','a page with text, prices and a list of facilities']];
+function loadClip(onProg){if(!CLIP_P)CLIP_P=import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2').then(function(t){t.env.allowLocalModels=false;
+  return t.pipeline('zero-shot-image-classification','Xenova/clip-vit-base-patch32',{quantized:true,progress_callback:function(x){if(onProg&&x&&x.status==='progress'&&x.file&&/onnx/.test(x.file))onProg(Math.round(x.progress||0))}})}).catch(function(e){CLIP_P=null;throw e});return CLIP_P}
+function buClassify(clf,url){return clf(url,BU_LABELS.map(function(l){return l[1]})).then(function(out){var best={};out.forEach(function(o){var cat=BU_LABELS.find(function(l){return l[1]===o.label})[0];best[cat]=Math.max(best[cat]||0,o.score)});var top=Object.keys(best).sort(function(a,b){return best[b]-best[a]})[0];return {cat:top,score:best[top],all:best}})}
+/* items: [{...}] urut sesuai PDF/folder. thumb(i) -> Promise<Blob kecil>. Balikin index terpilih (urut tampil). */
+function buPickPhotos(items,slots,thumb,onStat){
+  if(items.length<=slots)return Promise.resolve(items.map(function(_,i){return i}));
+  function spread(){var n=items.length,lim=Math.max(slots,Math.ceil(n*0.85)),out=[];for(var k=0;k<slots;k++)out.push(Math.round(k*(lim-1)/Math.max(1,slots-1)));return out.filter(function(x,i,a){return a.indexOf(x)===i})}
+  return loadClip(function(pct){onStat&&onStat('download AI pemilih foto '+pct+'% (sekali aja)…')}).then(function(clf){var res=[],i=0;
+    function next(){if(i>=items.length)return Promise.resolve();var k=i++;onStat&&onStat('AI milih foto '+k+'/'+items.length+'…');
+      return thumb(k).then(function(b){var u=URL.createObjectURL(b);return buClassify(clf,u).then(function(r){URL.revokeObjectURL(u);res[k]=r},function(){URL.revokeObjectURL(u)})}).catch(function(){}).then(next)}
+    return next().then(function(){
+      var want=['pool','living','view','facility','bedroom','pool','bedroom','facility','view','kitchen','living','bathroom'],used={},out=[];
+      want.forEach(function(cat){if(out.length>=slots)return;var cand=-1,bs=-1;res.forEach(function(r,k){if(!r||used[k]||r.cat!==cat)return;if(r.score>bs){bs=r.score;cand=k}});if(cand>=0){used[cand]=1;out.push(cand)}});
+      if(out.length<slots)res.forEach(function(r,k){if(out.length<slots&&r&&!used[k]&&r.cat!=='text'&&r.cat!=='bathroom'){used[k]=1;out.push(k)}});
+      return out.length?out:spread()})
+  }).catch(function(){onStat&&onStat('AI nggak kebuka, pilih foto merata…');return spread()})}
 var BU_IMG=/\.(jpe?g|png|webp|gif|bmp)$/i;
+function buThumb(file){return new Promise(function(res,rej){var u=URL.createObjectURL(file),im=new Image();im.onload=function(){var s=Math.min(1,384/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(function(b){b?res(b):rej()},'image/jpeg',0.7)};im.onerror=function(){URL.revokeObjectURL(u);rej()};im.src=u})}
 function buNatSort(a,b){return a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})}
 /* Kelompokkan file jadi daftar villa */
 function buGroup(files,mode){var groups=[];
@@ -319,7 +359,10 @@ function bulkUpload(){
         var v=g.match||D.villas.find(function(x){return buKey(x.name)===buKey(g.name)});var isNew=!v;
         if(isNew){v={id:uid(),name:g.name,location:'',bedrooms:'',bathrooms:'',capStd:'',capMax:'',priceWeekday:'',priceSemi:'',priceWeekend:'',priceHigh:'',facilities:[],desc:'',photos:[],active:true}}
         var cur=(v.photos||[]).slice();if(!isNew&&phMode==='replace')cur=[];var slots=(isNew||phMode!=='keep')?Math.max(0,6-cur.length):0;
-        var srcs=[];g.imgs.slice(0,slots).forEach(function(f){srcs.push({file:f})});if(srcs.length<slots&&pdfDoc)photoPages.slice(0,slots-srcs.length).forEach(function(p){srcs.push({page:p})});
+        var pool=g.imgs.map(function(f){return {file:f}});if(!pool.length&&pdfDoc)pool=photoPages.map(function(p){return {page:p}});
+        var thumb=function(k){var s=pool[k];return s.file?buThumb(s.file):buRenderPage(pdfDoc,s.page,384)};
+        return (slots?buPickPhotos(pool,slots,thumb,function(t){stat(i,t)}):Promise.resolve([])).then(function(idx){
+        var srcs=idx.map(function(k){return pool[k]});
         var up=[];var k=0;
         function nextPhoto(){if(!running||k>=srcs.length)return Promise.resolve();var s=srcs[k++];stat(i,'upload foto '+k+'/'+srcs.length+'…');
           return (s.file?compressBlob(s.file):buRenderPage(pdfDoc,s.page)).then(uploadBlob).then(function(u){up.push(u)}).catch(function(){}).then(nextPhoto)}
@@ -335,7 +378,7 @@ function bulkUpload(){
           if(isNew){if(miss.length)v.active=false;if(isMitra()){v.ownerAcc=USER.id;v.status='pending'}D.villas.push(v)}
           markDirty();done++;
           stat(i,(isNew?'✓ ditambah':'✓ diupdate')+' · '+up.length+' foto'+(miss.length?' · ⚠️ belum ada '+miss.join(' & ')+(isNew?' (disembunyiin dulu)':''):'')+(d.weGuess?' · harga weekend dari nama file':''),miss.length?'warn':'ok');
-          if(miss.length)report.push(g.name+': '+miss.join(' & '))})
+          if(miss.length)report.push(g.name+': '+miss.join(' & '))})})
       }).catch(function(e){fails++;stat(i,'gagal: '+(e&&e.message||'error'),'bad')}).then(function(){if(pdfDoc){try{pdfDoc.destroy()}catch(e){}}return one(i+1)})}
     one(0).then(function(){running=false;$('#buF',m).disabled=$('#buP',m).disabled=false;
       $('#buE',m).innerHTML='<span style="color:var(--green)">Selesai: '+done+' villa'+(fails?', '+fails+' gagal':'')+'. Udah kesimpen otomatis.</span>'+(report.length?'<br><span style="color:var(--ink)">Villa baru yang belum ada harga/kapasitas aku <b>sembunyiin dulu</b> dari tamu, lengkapin lewat tombol Edit ya.</span>':'');
