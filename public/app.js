@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261126c';
+var APP_VER='20261126d';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -440,7 +440,13 @@ function importExcel(){
 function modal(html){var bg=document.createElement('div');bg.className='modal-bg';bg.innerHTML='<div class="modal">'+html+'</div>';document.body.appendChild(bg);return bg}
 function confirmBox(title,body,okLabel){return new Promise(function(res){var m=modal('<h2>'+esc(title)+'</h2><p style="margin:0;color:var(--muted)">'+esc(body)+'</p><div class="mf"><button class="btn" data-x>Batal</button><button class="btn primary" data-ok>'+esc(okLabel||'OK')+'</button></div>');$('[data-x]',m).onclick=function(){m.remove();res(false)};$('[data-ok]',m).onclick=function(){m.remove();res(true)}})}
 
-function compressBlob(file){return new Promise(function(res,rej){var url=URL.createObjectURL(file),img=new Image();img.onload=function(){var max=1280,s=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);c.toBlob(function(b){b?res(b):rej()},'image/jpeg',0.75)};img.onerror=function(){URL.revokeObjectURL(url);rej()};img.src=url})}
+var HEIC_P=null;
+function isHeic(f){return /\.(heic|heif)$/i.test(f.name||'')||/hei[cf]/i.test(f.type||'')}
+function heicToJpg(f){if(!HEIC_P)HEIC_P=new Promise(function(res,rej){var sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';sc.onload=function(){window.heic2any?res(window.heic2any):rej()};sc.onerror=function(){HEIC_P=null;rej()};document.head.appendChild(sc)});
+  return HEIC_P.then(function(h){return h({blob:f,toType:'image/jpeg',quality:0.85})}).then(function(b){return Array.isArray(b)?b[0]:b})}
+function compressBlob(file){var nm=file&&file.name?'"'+file.name+'"':'foto';
+  var src=isHeic(file)?heicToJpg(file).catch(function(){throw new Error(nm+' format HEIC (iPhone) nggak bisa dibaca, ubah ke JPG dulu')}):Promise.resolve(file);
+  return src.then(function(f){return new Promise(function(res,rej){var url=URL.createObjectURL(f),img=new Image();img.onload=function(){var max=1280,s=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);c.toBlob(function(b){b?res(b):rej(new Error(nm+' gagal diproses'))},'image/jpeg',0.75)};img.onerror=function(){URL.revokeObjectURL(url);rej(new Error(nm+' bukan foto JPG/PNG yang bisa dibaca'))};img.src=url})})}
 function compress(file){return new Promise(function(res,rej){var url=URL.createObjectURL(file),img=new Image();img.onload=function(){var max=1100,s=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',0.72))};img.onerror=function(){URL.revokeObjectURL(url);rej()};img.src=url})}
 
 function editVilla(id){
@@ -470,14 +476,16 @@ function editVilla(id){
   function facR(){var all=FAC.concat((v.facilities||[]).filter(function(f){return FAC.indexOf(f)<0}));$('#fac',m).innerHTML=all.map(function(f){return '<button type="button" class="'+(v.facilities.indexOf(f)>=0?'on':'')+'" data-f="'+esc(f)+'">'+esc(f)+'</button>'}).join('');$$('[data-f]',m).forEach(function(b){b.onclick=function(){var f=b.dataset.f,i=v.facilities.indexOf(f);if(i>=0)v.facilities.splice(i,1);else v.facilities.push(f);facR()}})}
   function addFac(){var x=$('#facIn',m).value.trim();if(x&&v.facilities.indexOf(x)<0)v.facilities.push(x);$('#facIn',m).value='';facR()}
   $('#facAdd',m).onclick=addFac;$('#facIn',m).onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();addFac()}};
-  function pgR(){$('#pg',m).innerHTML=v.photos.map(function(p,i){return '<div class="p"><img src="'+imgSrc(p)+'" alt="">'+(i===0?'<span class="cv">Cover</span>':'')+'<div class="pa">'+(i>0?'<button type="button" data-cv="'+i+'">Jadikan cover</button>':'')+'<button type="button" data-rm="'+i+'">Hapus</button></div></div>'}).join('')+(v.photos.length<6?'<div class="add" id="padd">+ Tambah foto</div>':'');
+  function pgR(){$('#pg',m).innerHTML=v.photos.map(function(p,i){return '<div class="p"><img src="'+imgSrc(p)+'" alt="">'+(i===0?'<span class="cv">Cover</span>':'')+'<div class="pa">'+(i>0?'<button type="button" data-cv="'+i+'">Jadikan cover</button>':'')+'<button type="button" data-rm="'+i+'">Hapus</button></div></div>'}).join('')+(v.photos.length<6?'<div class="add" id="padd">+ Tambah foto</div>':'<div class="add" style="cursor:default;font-size:12px;text-align:center;padding:6px">Udah 6 foto (maks).<br>Hapus dulu yang mau diganti</div>')+(v.photos.length?'<div style="grid-column:1/-1"><button type="button" class="btn sm" id="pclr">Ganti semua foto</button></div>':'');
+    if($('#pclr',m))$('#pclr',m).onclick=function(){if(!window.confirm('Hapus semua foto villa ini terus pilih foto baru?'))return;v.photos=[];pgR();$('#pf',m).click()};
     $$('[data-rm]',m).forEach(function(b){b.onclick=function(){v.photos.splice(+b.dataset.rm,1);pgR()}});
     $$('[data-cv]',m).forEach(function(b){b.onclick=function(){var x=v.photos.splice(+b.dataset.cv,1)[0];v.photos.unshift(x);pgR()}});
     var a=$('#padd',m);if(a)a.onclick=function(){$('#pf',m).click()}}
   var upBusy=0;
-  $('#pf',m).onchange=function(e){var fs=Array.prototype.slice.call(e.target.files).slice(0,6-v.photos.length);e.target.value='';var a=$('#padd',m);if(a)a.textContent='Mengupload…';upBusy++;var fell=false;
-    fs.reduce(function(pr,f){return pr.then(function(){return compressBlob(f).then(uploadBlob).then(function(x){if(x)v.photos.push(x)}).catch(function(e){fell=e})})},Promise.resolve())
-    .then(function(){upBusy--;pgR();if(fell)toast('Ada foto yang gagal diupload: '+(fell.message||'coba lagi'),4500)})};
+  $('#pf',m).onchange=function(e){var all=Array.prototype.slice.call(e.target.files),room=6-v.photos.length,fs=all.slice(0,Math.max(0,room));e.target.value='';if(!fs.length){toast('Udah 6 foto (maks). Hapus dulu foto lama, atau klik "Ganti semua foto".',5000);return}
+    var a=$('#padd',m),n=0;upBusy++;var errs=[];
+    fs.reduce(function(pr,f){return pr.then(function(){n++;if(a)a.textContent='Mengupload '+n+'/'+fs.length+'…';return compressBlob(f).then(uploadBlob).then(function(x){if(x)v.photos.push(x)}).catch(function(e){errs.push((e&&e.message)||'gagal upload')})})},Promise.resolve())
+    .then(function(){upBusy--;pgR();var msg=[];if(errs.length)msg.push('Gagal: '+errs.join('; '));if(all.length>fs.length)msg.push((all.length-fs.length)+' foto nggak masuk karena maks 6 foto. Hapus foto lama dulu kalau mau ganti.');if(msg.length)toast(msg.join(' '),8000)})};
   facR();pgR();
   $$('[data-m]',m).forEach(function(i){i.addEventListener('input',function(){var n=num(i.value);i.value=n?n.toLocaleString('id-ID'):''})});
   $$('[data-n]',m).forEach(function(i){i.addEventListener('input',function(){i.value=i.value.replace(/\D/g,'').slice(0,3)})});
