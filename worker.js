@@ -8,6 +8,7 @@ import * as log from './functions/api/log.js';
 import * as priv from './functions/api/private.js';
 import * as dupes from './functions/api/dupes.js';
 import { cleanRejectedPhotos } from './lib/cleanup.js';
+import { handleSeo, loadSite, homeSeoBlock, HOME_LD } from './lib/seo.js';
 
 const ROUTES = { '/api/data': data, '/api/login': login, '/api/photo': photo, '/api/admins': admins, '/api/log': log, '/api/private': priv, '/api/dupes': dupes };
 
@@ -33,6 +34,21 @@ export default {
     const m = /^\/photos\/([^/]+)$/.exec(url.pathname);
     if (m && request.method === 'GET') {
       return photoFile.onRequestGet({ request, env, ctx, params: { name: m[1] } });
+    }
+    // Halaman buat Google: detail villa, per area, per kategori, sitemap, robots
+    if (request.method === 'GET' && /^\/(villa(\/[^/]*|-[a-z0-9-]+)?|sewa-villa-[a-z0-9-]+|sitemap\.xml|robots\.txt)\/?$/.test(url.pathname)) {
+      try { const r = await handleSeo(request, env); if (r) return r; } catch (e) { console.error('seo', e); }
+    }
+    // Halaman utama: tempel daftar area & kategori (teks + link) biar kebaca Google
+    if (request.method === 'GET' && url.pathname === '/') {
+      const res = await env.ASSETS.fetch(request);
+      try {
+        const site = await loadSite(env);
+        let html = await res.text();
+        html = html.replace('</head>', '<link rel="canonical" href="https://puncakgovillas.com/">\n<script type="application/ld+json">' + JSON.stringify(HOME_LD(site)).replace(/</g, '\\u003c') + '</script>\n</head>')
+          .replace('</body>', homeSeoBlock(site) + '\n</body>');
+        return new Response(html, { status: res.status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=120' } });
+      } catch (e) { console.error('home seo', e); return res; }
     }
     return env.ASSETS.fetch(request);
   },

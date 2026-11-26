@@ -146,6 +146,12 @@ function bindPhotos(root){
     window.addEventListener('mouseup',function(e){if(!down)return;down=false;ph.classList.remove('drag');var dx=e.pageX-sx,i=Math.round(sl/Math.max(1,ph.clientWidth));if(dx<-40)i++;else if(dx>40)i--;i=Math.max(0,Math.min(ph.children.length-1,i));ph.scrollTo({left:i*ph.clientWidth,behavior:'smooth'})});
   });
 }
+/* slug halaman detail villa (/villa/<slug>), harus sama persis dengan lib/seo.js */
+function slugify(x){return String(x||'').toLowerCase().replace(/\(.*?\)/g,' ').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,70)||'villa'}
+var SLUGS=null,SLUG_KEY='';
+function villaSlug(v){var vis=D.villas.filter(function(x){return x&&x.name&&x.active!==false&&!x.status});var key=vis.map(function(x){return x.id+':'+x.name}).join('|');
+  if(!SLUGS||key!==SLUG_KEY){SLUGS={};SLUG_KEY=key;var used={};vis.slice().sort(function(a,b){return a.id<b.id?-1:a.id>b.id?1:0}).forEach(function(x){var b=slugify(x.name);used[b]=(used[b]||0)+1;SLUGS[x.id]=used[b]===1?b:b+'-'+used[b]})}
+  return SLUGS[v.id]}
 function card(i,ns,g,isOver){
   var v=i.v,q=i.q,s=D.settings,ph=goodPhotos(v);
   var photos=ph.length?'<div class="phw"><div class="ph">'+ph.map(function(p,k){return '<img src="'+imgSrc(p)+'" alt="'+esc(v.name)+' foto '+(k+1)+'" loading="lazy">'}).join('')+'</div>'+(ph.length>1?'<button type="button" class="phb prev" data-ph="-1" aria-label="Foto sebelumnya">‹</button><button type="button" class="phb next" data-ph="1" aria-label="Foto berikutnya">›</button><div class="phn"><span class="phi">1</span>/'+ph.length+' foto</div>':'')+'</div>':'<div class="ph none">'+esc((v.name||'V').charAt(0))+'</div>';
@@ -159,7 +165,7 @@ function card(i,ns,g,isOver){
   return '<article class="vc'+(isOver?' over':'')+'">'+photos+'<div class="vb"><h3>'+esc(v.name)+'</h3><div class="meta">'+meta+'</div>'+
     ((v.facilities||[]).length?'<div class="chips">'+v.facilities.map(function(f){return '<span>'+esc(f)+'</span>'}).join('')+'</div>':'')+
     (v.desc?'<p class="desc">'+esc(v.desc)+'</p>':'')+extra+
-    '<div class="vf">'+price+(s.wa?'<a class="btn wa" target="_blank" rel="noopener" href="'+waLink(txt)+'">Booking via WhatsApp</a>':'')+'</div></div></article>';
+    '<div class="vf">'+price+'<div class="row" style="gap:8px">'+(villaSlug(v)?'<a class="btn" href="/villa/'+villaSlug(v)+'">Detail</a>':'')+(s.wa?'<a class="btn wa" target="_blank" rel="noopener" href="'+waLink(txt)+'">Booking via WhatsApp</a>':'')+'</div></div></div></article>';
 }
 
 /* ================= ADMIN ================= */

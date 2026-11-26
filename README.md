@@ -45,3 +45,8 @@ Deploy otomatis dari branch `main` lewat Cloudflare Workers Builds.
 Urutan: high season (rentang di admin) > Natal (malam 24 & 25 Des = weekend) > Sabtu = weekend > Jumat / malam sebelum tanggal merah (Min–Kam) = semi weekend > weekday.
 Harga semi weekend diisi per villa (`priceSemi`); kalau kosong pakai rata-rata weekday & weekend (dibulatkan 50rb).
 Tanggal merah disimpan di `holidays` ([{date,label}]), default libur nasional SKB 3 Menteri 2027 (`DEF_HOL` di app.js).
+
+## Halaman SEO (dirender server, `lib/seo.js`)
+- `/villa` semua villa · `/villa/<slug>` detail villa · `/sewa-villa-<area>` per area · `/villa-kolam-renang-puncak`, `/villa-rombongan-puncak`, `/villa-karaoke-puncak`, `/villa-murah-puncak`
+- `/sitemap.xml`, `/robots.txt`; halaman utama ditempel blok link area/kategori + JSON-LD.
+- Slug dihitung dari nama villa (urut id). Fungsi `slugify`/`villaSlug` di app.js harus sama dengan lib/seo.js.
