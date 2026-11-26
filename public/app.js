@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261126e';
+var APP_VER='20261126f';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -245,7 +245,7 @@ function paneDup(p){
 }
 /* ===== Upload massal: pilih FOLDER (subfolder per villa) atau beberapa file PDF villa ===== */
 var PDFJS_P=null;
-function loadPDFJS(){if(!PDFJS_P)PDFJS_P=import('/vendor/pdfjs/pdf.min.mjs').then(function(m){m.GlobalWorkerOptions.workerSrc='/vendor/pdfjs/pdf.worker.min.mjs';return m});return PDFJS_P}
+function loadPDFJS(){if(!PDFJS_P)PDFJS_P=import('/vendor/pdfjs/pdf.min.mjs').then(function(m){m.GlobalWorkerOptions.workerSrc='/vendor/pdfjs/pdf.worker.min.mjs';return m}).catch(function(e){PDFJS_P=null;throw e});return PDFJS_P}
 var BU_LOCS=['Cisarua','Ciloto','Kota Bunga','Cipanas','Hanjawar','Cimacan','Megamendung','Tugu','Cibodas','Puncak Resort','Pacet','Sindanglaya','Gadog','Ciburial','Safari','Puncak'];
 function buNum(s){s=String(s||'').replace(/^[.,]+|[.,]+$/g,'');if(/^\d{1,3}([.,]\d{3})+$/.test(s)||/^\d+$/.test(s))return parseInt(s.replace(/\D/g,''),10)||0;var g=s.split(/[.,]/);if(g.length>=2&&/^\d+$/.test(g[0]))return parseInt(g[0],10)*1e6+parseInt((g[1]+'0').charAt(0),10)*1e5;return parseInt(s.replace(/\D/g,''),10)||0}
 /* Nama villa dari nama file/folder: buang angka harga di depan, (N Kamar), PGV, Copy, dst */
@@ -282,15 +282,24 @@ function buParse(lines,fileName){var o={kamar:0,mandi:0,kap:0,wd:0,we:0,semi:0,l
         if(q>fi&&/^(layanan|tambahan|harga|catatan|note|hubungi|kontak|contact|booking|reservasi|syarat|ketentuan|check.?in|alamat|lokasi|kapasitas|weekday|weekend)\b/i.test(c)){stop=true;return}
         if(!c||c.length<3||c.length>40||/rp|=|\d{3,}|http|@|klik|instagram|tiktok|youtube|wa\b|^\d+\.|catering|catring|kambing|organ|orgen|extra b|balon|^max|^\d+\s*(kamar|orang|lantai)|^fasilitas|puncakgovillas|kami pun|menyediakan|testimoni|pembayaran|^cek\b/i.test(c))return;
         c=c.replace(/\s+/g,' ');if(o.fas.map(function(x){return x.toLowerCase()}).indexOf(c.toLowerCase())<0)o.fas.push(c)})});if(stop)break}}
-  if(!o.we){var fp=/^\s*(\d+)[.,]?(\d)?/.exec(fileName||'');if(fp&&+fp[1]<50){o.we=+fp[1]*1e6+(+(fp[2]||0))*1e5;o.weGuess=true}}
+  if(!o.we){var fp=/^\s*(\d{1,2})(?:[.,](\d)(?!\d)|\s*(?:jt|juta))/i.exec(fileName||'');if(fp&&+fp[1]<50&&(fp[2]||/jt|juta/i.test(fp[0]))){o.we=+fp[1]*1e6+(+(fp[2]||0))*1e5;o.weGuess=true}}
   return o}
 /* Buka PDF: ambil data dari halaman terakhir yang ada harganya; halaman lain = foto */
-function buReadPDF(file){return loadPDFJS().then(function(pdfjs){return file.arrayBuffer().then(function(buf){return pdfjs.getDocument({data:buf}).promise}).then(function(doc){
+function buReadPDF(file){return loadPDFJS().then(function(pdfjs){return file.arrayBuffer().then(function(buf){return pdfjs.getDocument({data:buf,isOffscreenCanvasSupported:false,isImageDecoderSupported:false,useSystemFonts:true}).promise}).then(function(doc){
   var n=doc.numPages,specPage=n,tries=[n,n-1,n-2].filter(function(x){return x>=1});
   function tryPage(k){if(k>=tries.length)return Promise.resolve(null);return doc.getPage(tries[k]).then(buPageLines).then(function(lines){var txt=lines.map(function(c){return c.join(' ')}).join(' ');if(/rp\s*[\d.]{6}|kamar\s*tidur|fasilitas/i.test(txt)){specPage=tries[k];return lines}return tryPage(k+1)})}
-  return tryPage(0).then(function(lines){var photoPages=[];for(var p=1;p<=n;p++)if(p!==specPage)photoPages.push(p);return {doc:doc,lines:lines||[],photoPages:photoPages}})})})}
+  return tryPage(0).then(function(lines){if(lines)return lines;
+    /* PDF hasil scan / gambar semua: halaman spek dibaca pakai OCR */
+    return buOcrPage(doc,n).then(function(L){var txt=L.map(function(c){return c.join(' ')}).join(' ');if(/rp\s*[\d.]{6}|kamar|fasilitas/i.test(txt)){specPage=n;return L}return null},function(e){console.warn('OCR gagal',e);return null})}).then(function(lines){var photoPages=[];for(var p=1;p<=n;p++)if(p!==specPage)photoPages.push(p);return {doc:doc,lines:lines||[],photoPages:photoPages}})})})}
+var TESS_P=null;
+function loadTess(){if(!TESS_P)TESS_P=new Promise(function(res,rej){if(window.Tesseract)return res(window.Tesseract);var sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';sc.onload=function(){window.Tesseract?res(window.Tesseract):rej(new Error('OCR'))};sc.onerror=function(){TESS_P=null;rej(new Error('OCR nggak kebuka'))};document.head.appendChild(sc)});return TESS_P}
+function buOcrPage(doc,p){return Promise.all([loadTess(),buRenderPage(doc,p,1800)]).then(function(x){var T=x[0],blob=x[1];return T.recognize(blob,'ind').then(function(r){var d=r.data||{},W=0;(d.words||[]).forEach(function(w){W=Math.max(W,w.bbox.x1)});var gap=Math.max(30,W*0.035);
+  return (d.lines||[]).map(function(ln){var ws=(ln.words||[]).filter(function(w){return w.text&&w.text.trim()}),cols=[],cur='',end=null;
+    ws.forEach(function(w,k){if(end!==null&&w.bbox.x0-end>gap){cols.push(cur);cur=''}var t=w.text.trim();
+      if(!cur&&k<ws.length-1&&/^([“”"'‘’«»•·*~✓✔√-]+[vVY]?|[vVY]{1,2}|[vVY]\W)$/.test(t)){end=w.bbox.x1;return}cur+=(cur?' ':'')+t;end=w.bbox.x1});cols.push(cur);
+    return cols.map(function(c){return c.replace(/\bBBO\b/g,'BBQ').trim()}).filter(function(c){return c.length>1})}).filter(function(c){return c.length})})})}
 function buRenderPage(doc,p,max){max=max||1280;return doc.getPage(p).then(function(page){var v=page.getViewport({scale:1}),sc=Math.min(3,max/Math.max(v.width,v.height)),vp=page.getViewport({scale:sc}),c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
-  return page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise.then(function(){return new Promise(function(res,rej){c.toBlob(function(b){b?res(b):rej(new Error('render'))},'image/jpeg',max<600?0.7:0.8)})})})}
+  return page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise.then(function(){return new Promise(function(res,rej){c.toBlob(function(b){c.width=c.height=0;try{page.cleanup()}catch(e){}b?res(b):rej(new Error('render'))},'image/jpeg',max<600?0.7:0.8)})})})}
 
 /* ===== Pilih foto otomatis pakai AI (CLIP, jalan di browser) =====
    Utamakan: kolam renang, ruang tengah, halaman/view, fasilitas (billiard/karaoke), kamar tidur. Kamar mandi & halaman teks dihindari. */
@@ -325,7 +334,8 @@ function buPickPhotos(items,slots,thumb,onStat){
     var outd=function(k){return feats[k]&&feats[k].out>0.12},out=ok.filter(outd).sort(function(a,b){return feats[b].out-feats[a].out}).slice(0,1);
     var rest=ok.filter(function(k){return !outd(k)});if(rest.length<slots-out.length)rest=ok.filter(function(k){return out.indexOf(k)<0});var need=slots-out.length;for(var j=0;j<need&&rest.length;j++){var k2=rest[Math.round(j*(rest.length-1)/Math.max(1,need-1))];if(out.indexOf(k2)<0)out.push(k2)}
     rest.forEach(function(k){if(out.length<slots&&out.indexOf(k)<0)out.push(k)});return out.slice(0,slots)}
-  return loadClip(function(pct){onStat&&onStat('download AI pemilih foto '+pct+'% (sekali aja)…')}).then(function(c){clf=c},function(e){err=(e&&e.message)||String(e);console.warn('AI foto gagal',e)}).then(function(){var i=0;
+  var phone=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent||'');
+  return (phone?Promise.reject(new Error('di HP pakai cara biasa (AI cuma di laptop)')):loadClip(function(pct){onStat&&onStat('download AI pemilih foto '+pct+'% (sekali aja)…')})).then(function(c){clf=c},function(e){err=(e&&e.message)||String(e);console.warn('AI foto gagal',e)}).then(function(){var i=0;
     function next(){if(i>=items.length)return Promise.resolve();var k=i++;onStat&&onStat((clf?'AI milih foto ':'milih foto ')+(k+1)+'/'+items.length+'…');
       return thumb(k).then(function(b){return buFeat(b).then(function(f){feats[k]=f;if(!clf)return;var u=URL.createObjectURL(b);return buClassify(clf,u).then(function(r){URL.revokeObjectURL(u);res[k]=r},function(e){URL.revokeObjectURL(u);console.warn(e)})})}).catch(function(){}).then(next)}
     return next()}).then(function(){
@@ -368,8 +378,8 @@ function bulkUpload(){
     var done=0,fails=0,report=[];
     function stat(i,txt,cls){var r=$('.bur[data-i="'+i+'"] .bus',m);if(r){r.textContent=txt;r.className='bus'+(cls?' '+cls:'')}}
     function one(i){if(!running)return Promise.resolve();if(i>=groups.length)return Promise.resolve();var g=groups[i];if(!g.name){stat(i,'dilewati (nama kosong)','bad');return one(i+1)}
-      stat(i,'membaca…');var info=null,pdfDoc=null,photoPages=[];
-      var pre=g.pdf?buReadPDF(g.pdf).then(function(r){pdfDoc=r.doc;photoPages=r.photoPages;info=buParse(r.lines,g.pdf.name)}).catch(function(){info=null}):Promise.resolve();
+      stat(i,'membaca PDF…');var info=null,pdfDoc=null,photoPages=[],readErr='';
+      var pre=g.pdf?buReadPDF(g.pdf).then(function(r){pdfDoc=r.doc;photoPages=r.photoPages;info=buParse(r.lines,g.pdf.name)}).catch(function(e){info=null;readErr=(e&&e.message)||String(e);console.warn('PDF gagal',e)}):Promise.resolve();
       return pre.then(function(){
         var v=g.match||myVillas().find(function(x){return buKey(x.name)===buKey(g.name)});var isNew=!v;
         if(isNew){v={id:uid(),name:g.name,location:'',bedrooms:'',bathrooms:'',capStd:'',capMax:'',priceWeekday:'',priceSemi:'',priceWeekend:'',priceHigh:'',facilities:[],desc:'',photos:[],active:true}}
@@ -393,7 +403,7 @@ function bulkUpload(){
           var miss=[];if(!v.priceWeekday&&!v.priceWeekend)miss.push('harga');if(!v.capStd&&!v.capMax)miss.push('kapasitas');
           if(isNew){if(miss.length)v.active=false;if(isMitra()){v.ownerAcc=USER.id;v.status='pending';var op={ownerName:'',ownerPhone:g.phone||'',ownerNote:''};PRIV_DIRTY[v.id]=op;PRIV[v.id]=op}D.villas.push(v)}
           markDirty();done++;
-          stat(i,(isNew?'✓ ditambah':'✓ diupdate')+' · '+up.length+' foto'+(miss.length?' · ⚠️ belum ada '+miss.join(' & ')+(isNew?' (disembunyiin dulu)':''):'')+(d.weGuess?' · harga weekend dari nama file':'')+(d.fas&&d.fas.length?' · '+d.fas.length+' fasilitas':'')+pickInfo,miss.length?'warn':'ok');
+          stat(i,(isNew?'✓ ditambah':'✓ diupdate')+' · '+up.length+' foto'+(miss.length?' · ⚠️ belum ada '+miss.join(' & ')+(isNew?' (disembunyiin dulu)':''):'')+(d.weGuess?' · harga weekend dari nama file':'')+(d.fas&&d.fas.length?' · '+d.fas.length+' fasilitas':'')+pickInfo+(readErr?' · ❌ PDF gagal dibaca: '+String(readErr).slice(0,80):''),miss.length?'warn':'ok');
           if(miss.length)report.push(g.name+': '+miss.join(' & '))})})
       }).catch(function(e){fails++;stat(i,'gagal: '+(e&&e.message||'error'),'bad')}).then(function(){if(pdfDoc){try{pdfDoc.destroy()}catch(e){}}return one(i+1)})}
     one(0).then(function(){running=false;$('#buF',m).disabled=$('#buP',m).disabled=false;
