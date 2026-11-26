@@ -196,3 +196,9 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;
 .vi .inf .upd b,.vi .inf .own b{display:inline}
 .dupc .vi .inf>span:first-of-type{display:block}
 .rl .yh{font-weight:700;color:var(--muted);font-size:12px;margin:10px 0 4px;letter-spacing:.04em}
+
+.bul{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.bur{display:flex;align-items:center;gap:8px;padding:7px 9px;border-top:1px solid var(--line)}.bur:first-child{border-top:0}
+.bur input{flex:1;min-width:0;padding:6px 9px}.bur .badge{flex:none}
+.bus{flex:0 0 42%;font-size:12.5px;color:var(--muted)}.bus.ok{color:var(--green2)}.bus.warn{color:#9a6200}.bus.bad{color:var(--red)}
+@media(max-width:600px){.bur{flex-wrap:wrap}.bus{flex-basis:100%}}

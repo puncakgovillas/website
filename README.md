@@ -50,3 +50,6 @@ Tanggal merah disimpan di `holidays` ([{date,label}]), default libur nasional SK
 - `/villa` semua villa · `/villa/<slug>` detail villa · `/sewa-villa-<area>` per area · `/villa-kolam-renang-puncak`, `/villa-rombongan-puncak`, `/villa-karaoke-puncak`, `/villa-murah-puncak`
 - `/sitemap.xml`, `/robots.txt`; halaman utama ditempel blok link area/kategori + JSON-LD.
 - Slug dihitung dari nama villa (urut id). Fungsi `slugify`/`villaSlug` di app.js harus sama dengan lib/seo.js.
+
+## Upload massal (folder / PDF)
+Tombol **Upload Folder / PDF** di tab Villa (admin & staff). Folder: subfolder per villa (nama subfolder = nama villa), foto JPG/PNG diurutkan sesuai nama file, PDF di dalamnya dipakai buat data. PDF: nama dari nama file, foto = halaman-halaman PDF, data dari halaman terakhir. pdf.js di-host sendiri di `public/vendor/pdfjs` (Apache-2.0).
