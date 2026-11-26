@@ -44,6 +44,7 @@ export async function onRequestPut({ request, env }) {
   const nowIso = new Date().toISOString();
   if (user.role === 'mitra') mergeMitra(current, incoming, user, nowIso);
   else stampTeam(current, incoming, user, nowIso);
+  stampCal(current, incoming, user, nowIso);
   const { items, changedIds } = describeChanges(current, incoming);
   // Tandai villa yang diubah: siapa & kapan
   incoming.villas.forEach((v) => {
@@ -55,7 +56,22 @@ export async function onRequestPut({ request, env }) {
     httpMetadata: { contentType: 'application/json' },
   });
   await addLog(env, user, items);
-  return json({ ok: true, rev: next.rev, villas: next.villas.map((v) => ({ id: v.id, updatedBy: v.updatedBy, updatedAt: v.updatedAt })) });
+  return json({ ok: true, rev: next.rev, villas: next.villas.map((v) => ({ id: v.id, updatedBy: v.updatedBy, updatedAt: v.updatedAt, calAt: v.calAt, calBy: v.calBy })) });
+}
+
+// Kapan jadwal villa terakhir diupdate (buat pengingat "udah lebih dari 6 hari belum update").
+// Dihitung server: berubah kalau tanggal terisi (hari ini ke depan) berubah, atau ada yang klik "udah dicek, nggak ada perubahan".
+function stampCal(current, incoming, user, nowIso) {
+  const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const fut = (a) => JSON.stringify((Array.isArray(a) ? a : []).filter((d) => d >= today).sort());
+  const cur = new Map((current.villas || []).map((v) => [v.id, v]));
+  const ob = current.booked || {}, nb = incoming.booked || {};
+  incoming.villas.forEach((v) => {
+    const o = cur.get(v.id), check = v.calCheck === true;
+    delete v.calCheck;
+    if (!o || check || fut(ob[v.id]) !== fut(nb[v.id])) { v.calAt = nowIso; v.calBy = user.name; }
+    else { if (o.calAt) v.calAt = o.calAt; else delete v.calAt; if (o.calBy) v.calBy = o.calBy; else delete v.calBy; }
+  });
 }
 
 // Siapa & kapan villa pertama kali diinput: diisi server, nggak bisa diubah dari luar (dipakai buat aturan komisi "yang duluan")

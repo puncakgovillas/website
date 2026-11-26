@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261126d';
+var APP_VER='20261126e';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -180,10 +180,11 @@ function scheduleSave(ms){clearTimeout(AUTO_T);clearTimeout(RETRY_T);AUTO_T=setT
 function busyTyping(){var a=document.activeElement;return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))||!!document.querySelector('.modal')}
 function renderAdmin(){
   app.innerHTML='<div class="abar"><div class="wrap"><span class="t">Admin · '+esc(D.settings.brand)+'</span><span class="who">👤 '+esc(USER?USER.name:'')+(isOwner()?' (Pemilik)':isMitra()?' (Mitra)':' (Admin)')+'</span><span id="st" class="st'+(dirty?' d':'')+'">'+(dirty?'Menyimpan otomatis…':'✓ Semua tersimpan otomatis')+'</span><a href="/" target="_blank">Lihat halaman tamu</a><a href="#" id="logout">Keluar</a><button class="btn" id="saveBtn" title="Perubahan udah disimpan otomatis. Tombol ini buat nyimpen sekarang juga.">Simpan sekarang</button></div></div>'+
-   '<div class="wrap"><div class="tabs">'+(isMitra()?[['villa','Villa Saya'],['cal','Jadwal']]:[['villa','Villa'],['dup','Verifikasi'+(pendingCount()?' ('+pendingCount()+')':'')],['cal','Tanggal Terisi'],['hs','High Season & Tgl Merah'],['set','Pengaturan']]).concat(isOwner()?[['log','Riwayat']]:[]).map(function(t){return '<button data-tab="'+t[0]+'" class="'+(A.tab===t[0]?'on':'')+'">'+t[1]+'</button>'}).join('')+'</div><div id="pane"></div></div>';
+   '<div class="wrap"><div class="tabs">'+(isMitra()?[['villa','Villa Saya'],['cal','Jadwal'+(staleList().length?' ⚠️'+staleList().length:'')]]:[['villa','Villa'],['dup','Verifikasi'+(pendingCount()?' ('+pendingCount()+')':'')],['cal','Tanggal Terisi'+(staleList().length?' ⚠️'+staleList().length:'')],['hs','High Season & Tgl Merah'],['set','Pengaturan']]).concat(isOwner()?[['log','Riwayat']]:[]).map(function(t){return '<button data-tab="'+t[0]+'" class="'+(A.tab===t[0]?'on':'')+'">'+t[1]+'</button>'}).join('')+'</div>'+staleBanner()+'<div id="pane"></div></div>';
   $$('[data-tab]').forEach(function(b){b.addEventListener('click',function(){A.tab=b.dataset.tab;renderAdmin()})});
   $('#saveBtn').addEventListener('click',function(){save(false)});
   $('#logout').onclick=function(e){e.preventDefault();if((dirty||saving)&&!window.confirm('Perubahan terakhir lagi disimpan. Tunggu sampai tulisan "Tersimpan otomatis" muncul, atau tetap keluar?'))return;setTok('');USER=null;PRIV={};PRIV_DIRTY={};dirty=false;renderLogin()};
+  bindStale();
   var p=$('#pane');
   if(A.tab==='villa')paneVilla(p);else if(A.tab==='cal')paneCal(p);else if(A.tab==='hs'&&!isMitra())paneHS(p);else if(A.tab==='dup'&&!isMitra())paneDup(p);else if(A.tab==='log'&&isOwner())paneLog(p);else if(!isMitra())paneSet(p);else paneVilla(p);
 }
@@ -515,7 +516,21 @@ function editVilla(id){
 }
 
 function ranges(arr){var a=(arr||[]).slice().sort(),out=[],s=null,prev=null;a.forEach(function(d){if(s&&addDays(prev,1)===d){prev=d}else{if(s)out.push([s,prev]);s=d;prev=d}});if(s)out.push([s,prev]);return out}
-function setNights(id,ns,on){var set={};(D.booked[id]||[]).forEach(function(d){set[d]=1});ns.forEach(function(d){if(on)set[d]=1;else delete set[d]});D.booked[id]=Object.keys(set).sort();if(!D.booked[id].length)delete D.booked[id]}
+/* ===== Pengingat update jadwal: villa yang jadwalnya udah lebih dari X hari (default 6) nggak diupdate ===== */
+var CAL_START='2026-11-26T11:00:00.000Z';
+function calDays(){var n=parseInt(D.settings.calDays,10);return n>0?n:6}
+function calAge(v){var t=Date.parse(v.calAt||CAL_START);return Math.floor((Date.now()-t)/864e5)}
+function staleList(){return myVillas().filter(function(v){return v.active!==false&&!v.status&&calAge(v)>=calDays()}).sort(function(a,b){return calAge(b)-calAge(a)})}
+function calWho(v){return v.ownerAcc?(accName(v.ownerAcc)?'Mitra '+accName(v.ownerAcc):'Mitra'):'Tim admin'}
+function calLast(v){return v.calAt?calAge(v)+' hari lalu'+(v.calBy?' oleh '+esc(v.calBy):''):'belum ada catatan (dihitung dari 26 Nov 2026)'}
+function calCheck(v){v.calCheck=true;v.calAt=new Date().toISOString();v.calBy=USER?USER.name:'';markDirty()}
+function staleBanner(){var L=staleList();if(!L.length)return '';
+  return '<div class="note warn" style="margin-bottom:14px"><div class="row" style="justify-content:space-between;align-items:center"><b>⚠️ '+L.length+' villa belum update jadwal lebih dari '+calDays()+' hari</b><button class="btn sm" id="stT">'+(A.staleOpen?'Tutup':'Lihat villanya')+'</button></div>'+
+    (A.staleOpen?'<div class="rl" style="margin-top:10px">'+L.map(function(v){return '<div class="it"><span><b>'+esc(v.name)+'</b>'+(isMitra()?'':' · '+esc(calWho(v)))+'<br><small>Update terakhir: '+calLast(v)+'</small></span><span class="row" style="gap:6px"><button class="btn sm" data-sgo="'+v.id+'">Buka jadwal</button><button class="btn sm primary" data-sok="'+v.id+'">✓ Udah dicek, nggak ada perubahan</button></span></div>'}).join('')+'</div>':'')+'</div>'}
+function bindStale(){var b=$('#stT');if(b)b.onclick=function(){A.staleOpen=!A.staleOpen;renderAdmin()};
+  $$('[data-sgo]').forEach(function(x){x.onclick=function(){var v=D.villas.find(function(y){return y.id===x.dataset.sgo});A.tab='cal';A.q=v?v.name:'';renderAdmin()}});
+  $$('[data-sok]').forEach(function(x){x.onclick=function(){var v=D.villas.find(function(y){return y.id===x.dataset.sok});if(!v)return;calCheck(v);toast('Jadwal '+v.name+' ditandai udah dicek');renderAdmin()}})}
+function setNights(id,ns,on){var cv=D.villas.find(function(x){return x.id===id});if(cv){cv.calAt=new Date().toISOString();cv.calBy=USER?USER.name:''}var set={};(D.booked[id]||[]).forEach(function(d){set[d]=1});ns.forEach(function(d){if(on)set[d]=1;else delete set[d]});D.booked[id]=Object.keys(set).sort();if(!D.booked[id].length)delete D.booked[id]}
 
 /* ===== sinkron dari aplikasi Pembukuan ===== */
 function normName(s){return String(s==null?'':s).toLowerCase().replace(/\s+/g,' ').trim()}
@@ -563,6 +578,9 @@ function bindSync(p){
   };
 }
 
+function calPanel(){var L=myVillas().filter(function(v){return v.active!==false&&!v.status}).sort(function(a,b){return calAge(b)-calAge(a)}),lim=calDays();
+  return '<div class="panel"><h2>Update jadwal terakhir</h2><p class="hint">Jadwal tiap villa wajib dicek minimal <b>'+lim+' hari sekali</b>'+(isOwner()?' (ubah batas: <input id="cdN" type="number" min="1" max="99" value="'+lim+'" style="width:60px;display:inline-block;padding:4px 6px"> hari)':'')+'. Dianggap update kalau ada tanggal terisi/kosong yang diubah, atau klik <b>"Udah dicek"</b> kalau jadwalnya emang nggak berubah.</p><div class="rl">'+
+    L.map(function(v){var old=calAge(v)>=lim;return '<div class="it"><span>'+(old?'⚠️ ':'✅ ')+'<b>'+esc(v.name)+'</b>'+(isMitra()?'':' · '+esc(calWho(v)))+'<br><small style="'+(old?'color:var(--red)':'')+'">Update terakhir: '+calLast(v)+'</small></span><button class="btn sm'+(old?' primary':'')+'" data-cok="'+v.id+'">✓ Udah dicek</button></div>'}).join('')+'</div></div>'}
 function paneCal(p){
   if(!myVillas().length){p.innerHTML='<div class="panel"><div class="empty"><b>Tambah villa dulu</b>Baru habis itu bisa tandai tanggal terisi.</div></div>';return}
   var t=todayDS(),ym=A.month.split('-').map(Number),dim=new Date(Date.UTC(ym[0],ym[1],0)).getUTCDate(),days=[];
@@ -576,8 +594,10 @@ function paneCal(p){
   var rl=myVillas().map(function(v){var rs=ranges((D.booked[v.id]||[]).filter(function(x){return x>=t}));if(!rs.length)return '';return '<div class="rg" data-n="'+esc(String(v.name||'').toLowerCase()+' '+String(v.location||'').toLowerCase())+'"><h4>'+esc(v.name)+'</h4>'+rs.map(function(r){var n=nights(r[0],addDays(r[1],1)).length;return '<div class="it"><span>'+fmtD(r[0],{weekday:'short'})+' → check-out '+fmtD(addDays(r[1],1),{weekday:'short'})+' · '+n+' malam</span><button class="btn sm danger" data-rr="'+v.id+'|'+r[0]+'|'+r[1]+'">Kosongkan</button></div>'}).join('')+'</div>'}).join('');
   p.innerHTML='<div class="srch" style="margin-bottom:18px"><input id="cq" type="search" placeholder="🔍 Cari villa (nama atau lokasi)…" value="'+esc(A.q)+'" autocomplete="off"><p class="hint" id="cqn" style="margin:6px 2px 0"></p></div>'+(isMitra()?'':syncPanel())+'<div class="panel"><h2>Tandai tanggal terisi</h2><p class="hint">Masukin tanggal check-in dan check-out tamu. Malam-malam di antaranya otomatis ketutup buat tamu lain.</p><div class="row"><label>Villa<select id="bv">'+opts+'</select></label><label>Check-in<input type="date" id="bci" min="'+t+'"></label><label>Check-out<input type="date" id="bco" min="'+addDays(t,1)+'"></label><button class="btn primary" id="bOn">Tandai terisi</button><button class="btn" id="bOff">Tandai kosong</button></div><div id="ber" class="err"></div></div>'+
    '<div class="panel"><h2>Kalender</h2><p class="hint">Tiap kotak = 1 malam. Klik kotak buat ganti terisi/kosong.</p><div class="calnav"><button class="btn sm" id="pm">‹</button><b>'+mName+'</b><button class="btn sm" id="nm">›</button></div><div class="cal">'+table+'</div><div class="legend"><span><i style="background:var(--red)"></i>Terisi</span><span><i style="background:#fcf6ec;border:1px solid #eee"></i>Weekend</span><span><i style="background:#fbeee0;border:1px solid #eee"></i>High season</span><span><i style="background:#f3f3f3;border:1px solid #eee"></i>Sudah lewat</span></div></div>'+
-   '<div class="panel"><h2>Jadwal terisi ke depan</h2><div class="rl">'+(rl||'<p class="hint" style="margin:0">Belum ada tanggal terisi.</p>')+'</div></div>';
+   calPanel()+'<div class="panel"><h2>Jadwal terisi ke depan</h2><div class="rl">'+(rl||'<p class="hint" style="margin:0">Belum ada tanggal terisi.</p>')+'</div></div>';
   bindSync(p);
+  $$('[data-cok]',p).forEach(function(x){x.onclick=function(){var v=D.villas.find(function(y){return y.id===x.dataset.cok});if(!v)return;calCheck(v);toast('Jadwal '+v.name+' ditandai udah dicek');renderAdmin()}});
+  if($('#cdN',p))$('#cdN',p).onchange=function(){var n=parseInt(this.value,10);if(n>0&&n<100){D.settings.calDays=n;markDirty();renderAdmin()}};
   $('#bci',p).onchange=function(){var a=$('#bci',p).value,b=$('#bco',p);if(a){b.min=addDays(a,1);if(!b.value||b.value<=a)b.value=addDays(a,1)}};
   function apply(on){var ci=$('#bci',p).value,co=$('#bco',p).value;if(!ci||!co||co<=ci){$('#ber',p).textContent='Isi check-in & check-out dengan benar.';return}setNights($('#bv',p).value,nights(ci,co),on);markDirty();A.month=ci.slice(0,7);var keep=$('#bv',p).value;renderAdmin();var s=$('#bv');if(s)s.value=keep;toast(on?'Ditandai terisi':'Ditandai kosong')}
   $('#bOn',p).onclick=function(){apply(true)};$('#bOff',p).onclick=function(){apply(false)};
@@ -670,7 +690,7 @@ function save(auto){
   var t=todayDS();Object.keys(D.booked).forEach(function(k){D.booked[k]=D.booked[k].filter(function(d){return d>=t});if(!D.booked[k].length)delete D.booked[k]});Object.keys(D.synced||{}).forEach(function(k){D.synced[k]=D.synced[k].filter(function(d){return d>=t});if(!D.synced[k].length)delete D.synced[k]});
   var pk=Object.keys(PRIV_DIRTY),names={};pk.forEach(function(id){var v=D.villas.find(function(x){return x.id===id});names[id]=v?v.name:''});
   var sent=JSON.parse(JSON.stringify(D)),privSent=PRIV_DIRTY;PRIV_DIRTY={};
-  api('PUT','/api/data',{rev:REV,data:sent}).then(function(r){return (pk.length?api('PUT','/api/private',{villas:privSent,names:names}).catch(function(e){Object.keys(privSent).forEach(function(k){if(!PRIV_DIRTY[k])PRIV_DIRTY[k]=privSent[k]});throw e}):Promise.resolve()).then(function(){return r})}).then(function(r){REV=r.rev;flushPhotoDel();var newP=isMitra()?D.villas.filter(function(v){return v.status==='pending'&&!DUPS[v.id]}).length:0;loadDups().then(function(){if(isAdminPath()&&!busyTyping())renderAdmin();if(newP)toast('Villa tersimpan & lagi nunggu verifikasi admin. Belum tampil ke tamu sampai disetujui.',5000)});(r.villas||[]).forEach(function(x){var v=D.villas.find(function(y){return y.id===x.id});if(v){v.updatedBy=x.updatedBy;v.updatedAt=x.updatedAt}});save.retry=0;BASE=Object.assign(sent,{rev:REV});saving=false;
+  api('PUT','/api/data',{rev:REV,data:sent}).then(function(r){return (pk.length?api('PUT','/api/private',{villas:privSent,names:names}).catch(function(e){Object.keys(privSent).forEach(function(k){if(!PRIV_DIRTY[k])PRIV_DIRTY[k]=privSent[k]});throw e}):Promise.resolve()).then(function(){return r})}).then(function(r){REV=r.rev;flushPhotoDel();var newP=isMitra()?D.villas.filter(function(v){return v.status==='pending'&&!DUPS[v.id]}).length:0;loadDups().then(function(){if(isAdminPath()&&!busyTyping())renderAdmin();if(newP)toast('Villa tersimpan & lagi nunggu verifikasi admin. Belum tampil ke tamu sampai disetujui.',5000)});(r.villas||[]).forEach(function(x){var v=D.villas.find(function(y){return y.id===x.id});if(v){v.updatedBy=x.updatedBy;v.updatedAt=x.updatedAt;var sv=(sent.villas||[]).find(function(y){return y.id===x.id});if(sv&&sv.calCheck)delete v.calCheck;if(x.calAt&&!v.calCheck){v.calAt=x.calAt;v.calBy=x.calBy}}});save.retry=0;BASE=Object.assign(sent,{rev:REV});saving=false;
     var more=CHG!==c0||Object.keys(PRIV_DIRTY).length>0;dirty=more;
     if(isAdminPath()&&!busyTyping())renderAdmin();
     if(!auto)toast('Tersimpan! Website udah update.');

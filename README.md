@@ -53,3 +53,8 @@ Tanggal merah disimpan di `holidays` ([{date,label}]), default libur nasional SK
 
 ## Upload massal (folder / PDF)
 Tombol **Upload Folder / PDF** di tab Villa (admin & staff). Folder: subfolder per villa (nama subfolder = nama villa), foto JPG/PNG diurutkan sesuai nama file, PDF di dalamnya dipakai buat data. PDF: nama dari nama file, foto = halaman-halaman PDF, data dari halaman terakhir. pdf.js di-host sendiri di `public/vendor/pdfjs` (Apache-2.0).
+
+## Pengingat update jadwal
+Tiap villa (yang tampil) dicatat kapan jadwalnya terakhir diupdate (`calAt`, `calBy`, dihitung server).
+Dianggap update kalau tanggal terisi hari ini ke depan berubah, atau ada yang klik "Udah dicek, nggak ada perubahan".
+Kalau lebih dari `settings.calDays` hari (default 6), muncul peringatan di atas halaman admin & di tab jadwal. Mitra cuma lihat villanya sendiri.
