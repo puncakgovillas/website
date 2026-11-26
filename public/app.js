@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261126f';
+var APP_VER='20261126g';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -50,19 +50,22 @@ function isHigh(ds){return D.highSeason.some(function(r){return ds>=r.start&&ds<
 /* Tanggal merah (libur nasional, SKB 3 Menteri). Bisa ditambah/hapus di admin tab High Season & Tgl Merah. */
 var DEF_HOL=[{date:'2026-12-25',label:'Natal'},{date:'2027-01-01',label:'Tahun Baru 2027'},{date:'2027-01-05',label:'Isra Mikraj'},{date:'2027-02-06',label:'Imlek'},{date:'2027-03-08',label:'Nyepi'},{date:'2027-03-10',label:'Idulfitri'},{date:'2027-03-11',label:'Idulfitri'},{date:'2027-03-26',label:'Wafat Yesus Kristus'},{date:'2027-03-28',label:'Paskah'},{date:'2027-05-01',label:'Hari Buruh'},{date:'2027-05-06',label:'Kenaikan Yesus Kristus'},{date:'2027-05-17',label:'Iduladha'},{date:'2027-05-20',label:'Waisak'},{date:'2027-06-01',label:'Hari Lahir Pancasila'},{date:'2027-06-06',label:'Tahun Baru Islam'},{date:'2027-08-15',label:'Maulid Nabi'},{date:'2027-08-17',label:'HUT RI'},{date:'2027-12-25',label:'Natal'},{date:'2027-12-26',label:'Isra Mikraj'}];
 function isHol(ds){return (D.holidays||[]).some(function(h){return h.date===ds})}
+/* Lebaran: dari H-lebB sampai H+lebA (default H-1 s/d H+5) semua malam pakai harga weekend. H = tanggal 1 Syawal */
+function lebDays(){var s=D.settings||{};return {b:s.lebB>=0?+s.lebB:1,a:s.lebA>=0?+s.lebA:5,list:Array.isArray(s.lebaran)?s.lebaran:['2027-03-10']}}
+function isLeb(ds){var L=lebDays();return L.list.some(function(h){return ds>=addDays(h,-L.b)&&ds<=addDays(h,L.a)})}
 function isXmas(ds){var md=ds.slice(5);return md==='12-24'||md==='12-25'}
 /* Jenis harga per MALAM:
    high season (rentang di admin) > Natal (malam 24 & 25 Des = weekend) > Sabtu = weekend >
    Jumat, atau malam sebelum tanggal merah (Minggu–Kamis) = semi weekend > sisanya weekday */
 function dayType(ds){var w=dow(ds);
   if(isHigh(ds))return 'high';
-  if(isXmas(ds)||w===6)return 'weekend';
+  if(isXmas(ds)||isLeb(ds)||w===6)return 'weekend';
   if(w===5||isHol(addDays(ds,1)))return 'semi';
   return 'weekday'}
 function isWeekend(ds){var t=dayType(ds);return t==='weekend'||t==='semi'}
 function semiPrice(v){if(v.priceSemi)return v.priceSemi;var a=v.priceWeekday,b=v.priceWeekend;if(a&&b)return Math.round((a+b)/2/50000)*50000;return b||a||0}
 function rate(v,ds){var t=dayType(ds);
-  if(t==='high'){if(v.priceHigh)return{p:v.priceHigh,t:'high'};t=dow(ds)===6||isXmas(ds)?'weekend':(dow(ds)===5||isHol(addDays(ds,1))?'semi':'weekday')}
+  if(t==='high'){if(v.priceHigh)return{p:v.priceHigh,t:'high'};t=dow(ds)===6||isXmas(ds)||isLeb(ds)?'weekend':(dow(ds)===5||isHol(addDays(ds,1))?'semi':'weekday')}
   if(t==='weekend'&&v.priceWeekend)return{p:v.priceWeekend,t:'weekend'};
   if(t==='weekend'||t==='semi'){var sp=semiPrice(v);if(sp)return{p:sp,t:'semi'}}
   return{p:v.priceWeekday||v.priceWeekend||0,t:'weekday'};
@@ -633,6 +636,17 @@ function paneHS(p){
   paneHol(p);
 }
 function paneHol(p){
+  var lb=document.createElement('div');lb.className='panel';p.appendChild(lb);var L=lebDays();
+  var ll=L.list.slice().sort().map(function(h){var a=addDays(h,-L.b),z=addDays(h,L.a),f=function(d){return fmtD(d,{weekday:'short',day:'numeric',month:'short',year:undefined})};
+    return '<div class="it"><span><b>Lebaran '+fmtD(h,{weekday:'long'})+'</b><br><small class="hint">Harga weekend: malam '+f(a)+' s/d malam '+f(z)+' ('+(L.a+L.b+1)+' malam)</small></span><button class="btn sm danger" data-lebd="'+h+'">Hapus</button></div>'}).join('');
+  lb.innerHTML='<h2>Lebaran (Idul Fitri)</h2><p class="hint">Semua malam dari <b>H-<input id="lebB" type="number" min="0" max="14" value="'+L.b+'" style="width:56px;display:inline-block;padding:3px 6px"></b> sampai <b>H+<input id="lebA" type="number" min="0" max="30" value="'+L.a+'" style="width:56px;display:inline-block;padding:3px 6px"></b> pakai <b>harga weekend</b>. H = hari pertama Idul Fitri. Kalau tanggalnya masuk rentang high season, tetep harga high season.</p>'+
+    '<div class="row"><label>Tanggal Idul Fitri (H)<input type="date" id="lebD"></label><button class="btn primary" id="lebAdd">Tambah</button></div>'+
+    '<div class="rl" style="margin-top:14px">'+(ll||'<p class="hint" style="margin:0">Belum ada tanggal Lebaran.</p>')+'</div>';
+  function setL(k,v){D.settings[k]=v;markDirty();renderAdmin()}
+  $('#lebB',lb).onchange=function(){var n=parseInt(this.value,10);if(n>=0&&n<=14)setL('lebB',n)};
+  $('#lebA',lb).onchange=function(){var n=parseInt(this.value,10);if(n>=0&&n<=30)setL('lebA',n)};
+  $('#lebAdd',lb).onclick=function(){var d=$('#lebD',lb).value;if(!d||L.list.indexOf(d)>=0)return;setL('lebaran',L.list.concat([d]).sort())};
+  $$('[data-lebd]',lb).forEach(function(b){b.onclick=function(){setL('lebaran',L.list.filter(function(x){return x!==b.dataset.lebd}))}});
   var box=document.createElement('div');box.className='panel';p.appendChild(box);
   var today=todayDS(),showOld=A.holOld;
   var hs=(D.holidays||[]).slice().sort(function(a,b){return a.date<b.date?-1:1});
@@ -642,7 +656,7 @@ function paneHol(p){
   var list=vis.map(function(h){var y=h.date.slice(0,4),hd=y!==yr?'<div class="yh">'+y+'</div>':'';yr=y;var eve=addDays(h.date,-1),w=dow(h.date),et=dayType(eve);
     var eff=w===0||w===6?'jatuh di akhir pekan, harga nggak berubah':(et==='semi'?'malam '+fmtD(eve,{weekday:'short',day:'numeric',month:'short',year:undefined})+' jadi <b>semi weekend</b>':et==='weekend'?'malam sebelumnya udah harga weekend':et==='high'?'malam sebelumnya udah high season':'');
     return hd+'<div class="it"><span><b>'+fmtD(h.date,{weekday:'short'})+'</b> · '+esc(h.label||'Tanggal merah')+'<br><small class="hint">'+eff+'</small></span><button class="btn sm danger" data-hold="'+h.date+'">Hapus</button></div>'}).join('');
-  box.innerHTML='<h2>Tanggal merah</h2><p class="hint">Aturan harga per malam:<br>• <b>Minggu–Kamis</b> = weekday<br>• <b>Jumat</b> = semi weekend<br>• <b>Sabtu</b> = weekend<br>• Tanggal merah di hari kerja → <b>malam sebelumnya</b> jadi semi weekend<br>• <b>Natal</b> (malam 24 & 25 Des) = weekend<br>• Rentang <b>high season</b> di atas (misal tahun baru) ngalahin semuanya</p>'+
+  box.innerHTML='<h2>Tanggal merah</h2><p class="hint">Aturan harga per malam:<br>• <b>Minggu–Kamis</b> = weekday<br>• <b>Jumat</b> = semi weekend<br>• <b>Sabtu</b> = weekend<br>• Tanggal merah di hari kerja → <b>malam sebelumnya</b> jadi semi weekend<br>• <b>Natal</b> (malam 24 & 25 Des) = weekend<br>• <b>Lebaran</b> (H-'+lebDays().b+' s/d H+'+lebDays().a+') = weekend<br>• Rentang <b>high season</b> di atas (misal tahun baru) ngalahin semuanya</p>'+
     (miss.length?'<div class="note" style="margin-bottom:12px">Ada '+miss.length+' libur nasional (SKB 3 Menteri) yang belum masuk. <button class="btn sm" id="holFill">Masukin semua</button></div>':'')+
     '<div class="row"><label>Nama<input id="holL" placeholder="Idulfitri / cuti bersama"></label><label>Tanggal<input type="date" id="holD"></label><button class="btn primary" id="holA">Tambah</button></div><div id="holE" class="err"></div>'+
     '<div class="rl" style="margin-top:14px">'+(list||'<p class="hint" style="margin:0">Belum ada tanggal merah.</p>')+'</div>'+
