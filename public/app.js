@@ -171,13 +171,18 @@ function card(i,ns,g,isOver){
 /* ================= ADMIN ================= */
 var A={tab:'villa',month:todayDS().slice(0,7),q:''};
 function matchQ(v){var q=A.q.trim().toLowerCase();return !q||String(v.name||'').toLowerCase().indexOf(q)>=0||String(v.location||'').toLowerCase().indexOf(q)>=0}
-function markDirty(){dirty=true;var st=$('#st');if(st){st.className='st d';st.textContent='Ada perubahan yang belum disimpan'}}
+/* Auto save: tiap ada perubahan, otomatis disimpan 2 detik setelah perubahan terakhir */
+var CHG=0,AUTO_T=null,RETRY_T=null;
+function setSt(cls,txt){var st=$('#st');if(st){st.className='st'+(cls?' '+cls:'');st.textContent=txt}}
+function markDirty(){dirty=true;CHG++;setSt('d','Menyimpan otomatis…');scheduleSave(2000)}
+function scheduleSave(ms){clearTimeout(AUTO_T);clearTimeout(RETRY_T);AUTO_T=setTimeout(function(){if(dirty&&USER)save(true)},ms)}
+function busyTyping(){var a=document.activeElement;return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))||!!document.querySelector('.modal')}
 function renderAdmin(){
-  app.innerHTML='<div class="abar"><div class="wrap"><span class="t">Admin · '+esc(D.settings.brand)+'</span><span class="who">👤 '+esc(USER?USER.name:'')+(isOwner()?' (Pemilik)':isMitra()?' (Mitra)':' (Admin)')+'</span><span id="st" class="st'+(dirty?' d':'')+'">'+(dirty?'Ada perubahan yang belum disimpan':'Semua tersimpan')+'</span><a href="/" target="_blank">Lihat halaman tamu</a><a href="#" id="logout">Keluar</a><button class="btn primary" id="saveBtn">Simpan &amp; Publikasikan</button></div></div>'+
+  app.innerHTML='<div class="abar"><div class="wrap"><span class="t">Admin · '+esc(D.settings.brand)+'</span><span class="who">👤 '+esc(USER?USER.name:'')+(isOwner()?' (Pemilik)':isMitra()?' (Mitra)':' (Admin)')+'</span><span id="st" class="st'+(dirty?' d':'')+'">'+(dirty?'Menyimpan otomatis…':'✓ Semua tersimpan otomatis')+'</span><a href="/" target="_blank">Lihat halaman tamu</a><a href="#" id="logout">Keluar</a><button class="btn" id="saveBtn" title="Perubahan udah disimpan otomatis. Tombol ini buat nyimpen sekarang juga.">Simpan sekarang</button></div></div>'+
    '<div class="wrap"><div class="tabs">'+(isMitra()?[['villa','Villa Saya'],['cal','Jadwal']]:[['villa','Villa'],['dup','Verifikasi'+(pendingCount()?' ('+pendingCount()+')':'')],['cal','Tanggal Terisi'],['hs','High Season & Tgl Merah'],['set','Pengaturan']]).concat(isOwner()?[['log','Riwayat']]:[]).map(function(t){return '<button data-tab="'+t[0]+'" class="'+(A.tab===t[0]?'on':'')+'">'+t[1]+'</button>'}).join('')+'</div><div id="pane"></div></div>';
   $$('[data-tab]').forEach(function(b){b.addEventListener('click',function(){A.tab=b.dataset.tab;renderAdmin()})});
-  $('#saveBtn').addEventListener('click',save);
-  $('#logout').onclick=function(e){e.preventDefault();if(dirty&&!window.confirm('Ada perubahan belum disimpan. Tetap keluar?'))return;setTok('');USER=null;PRIV={};PRIV_DIRTY={};dirty=false;renderLogin()};
+  $('#saveBtn').addEventListener('click',function(){save(false)});
+  $('#logout').onclick=function(e){e.preventDefault();if((dirty||saving)&&!window.confirm('Perubahan terakhir lagi disimpan. Tunggu sampai tulisan "Tersimpan otomatis" muncul, atau tetap keluar?'))return;setTok('');USER=null;PRIV={};PRIV_DIRTY={};dirty=false;renderLogin()};
   var p=$('#pane');
   if(A.tab==='villa')paneVilla(p);else if(A.tab==='cal')paneCal(p);else if(A.tab==='hs'&&!isMitra())paneHS(p);else if(A.tab==='dup'&&!isMitra())paneDup(p);else if(A.tab==='log'&&isOwner())paneLog(p);else if(!isMitra())paneSet(p);else paneVilla(p);
 }
@@ -214,7 +219,7 @@ function paneVilla(p){
 /* ===== verifikasi villa baru dari broker/mitra + cek dobel ===== */
 function paneDup(p){
   p.innerHTML='<div class="panel"><h2>Verifikasi villa baru</h2><p class="hint" style="margin:0">Villa baru yang diinput akun mitra/broker masuk sini dulu dan <b>belum tampil ke tamu</b> sampai disetujui. Sistem ngecek otomatis villa lain yang kemungkinan sama (no. HP pemilik, nama, lokasi & kamar). Aturan komisi: <b>yang input duluan yang dapet</b>.</p><div id="dl" style="margin-top:14px"><p class="hint">Memuat…</p></div></div>';
-  if(dirty){$('#dl',p).innerHTML='<div class="note">Ada perubahan yang belum disimpan. Klik <b>Simpan &amp; Publikasikan</b> dulu biar pengecekan dobelnya pakai data terbaru.</div>';return}
+  if(dirty){$('#dl',p).innerHTML='<div class="note">Lagi nyimpen perubahan otomatis… daftar ini muncul sebentar lagi.</div>';return}
   function when(x){return x.createdAt?fmtTime(x.createdAt):'data lama'}
   function who(x){return x.by||(x.ownerAcc?accName(x.ownerAcc):'')||'tim'}
   function info(x){return '<span>'+esc(x.location||'-')+' · '+(x.bedrooms||'-')+' kamar · WD '+rp(x.priceWeekday)+' · WE '+rp(x.priceWeekend)+'</span>'+(x.ownerPhone!=null?'<span class="own">🔒 Pemilik: '+esc(x.ownerName||'-')+(x.ownerPhone?' · '+esc(x.ownerPhone):' · <b>no. HP kosong</b>')+'</span>':'')+'<span class="upd">Diinput <b>'+esc(who(x))+'</b> · '+esc(when(x))+'</span>'}
@@ -270,7 +275,7 @@ function importExcel(){
     parsed.forEach(function(r){var pr=r._priv;delete r._priv;var ex=idx[r.name.toLowerCase()];if(ex){Object.keys(r).forEach(function(k){ex[k]=r[k]})}else{var v=Object.assign({id:uid(),name:'',location:'',bedrooms:0,bathrooms:0,capStd:0,capMax:0,priceWeekday:0,priceWeekend:0,priceHigh:0,facilities:[],desc:'',photos:[],active:true},r);D.villas.push(v);idx[r.name.toLowerCase()]=v}
       if(pr&&canOwner()){var tv=idx[r.name.toLowerCase()],op=PRIV[tv.id]||{},np=Object.assign({ownerName:op.ownerName||'',ownerPhone:op.ownerPhone||'',ownerNote:op.ownerNote||''},pr);PRIV_DIRTY[tv.id]=np;PRIV[tv.id]=Object.assign({},op,np)}});
     D.villas.forEach(function(v){if(v.capMax&&v.capStd&&v.capMax<v.capStd)v.capMax=v.capStd});
-    m.remove();markDirty();renderAdmin();toast('Import beres. Jangan lupa klik "Simpan & Publikasikan".',4000)};
+    m.remove();markDirty();renderAdmin();toast('Import beres, lagi disimpan otomatis.',4000)};
 }
 
 function modal(html){var bg=document.createElement('div');bg.className='modal-bg';bg.innerHTML='<div class="modal">'+html+'</div>';document.body.appendChild(bg);return bg}
@@ -317,7 +322,14 @@ function editVilla(id){
   facR();pgR();
   $$('[data-m]',m).forEach(function(i){i.addEventListener('input',function(){var n=num(i.value);i.value=n?n.toLocaleString('id-ID'):''})});
   $$('[data-n]',m).forEach(function(i){i.addEventListener('input',function(){i.value=i.value.replace(/\D/g,'').slice(0,3)})});
-  $('[data-x]',m).onclick=function(){m.remove()};
+  function formSnap(){return JSON.stringify([$$('input,textarea,select',m).map(function(i){return i.type==='checkbox'?i.checked:i.value}),v.photos,v.facilities])}
+  var snap0=formSnap();
+  $('[data-x]',m).onclick=function(){
+    if(formSnap()===snap0&&!upBusy){m.remove();return}
+    var q=modal('<h2>Perubahan villa belum disimpan</h2><p style="margin:0;color:var(--muted)">Mau disimpan dulu? Kalau pilih <b>Buang</b>, perubahan & foto yang barusan diupload nggak kepakai.</p><div class="mf"><button class="btn danger" data-x>Buang</button><button class="btn primary" data-ok>Simpan villa</button></div>');
+    $('[data-x]',q).onclick=function(){q.remove();m.remove()};
+    $('[data-ok]',q).onclick=function(){q.remove();$('.mf [data-ok]',m).click()};
+  };
   $('[data-ok]',m).onclick=function(){
     if(upBusy){$('#er',m).textContent='Tunggu upload foto selesai dulu ya.';return}
     $$('[data-k]',m).forEach(function(i){v[i.dataset.k]=i.value.trim()});
@@ -331,7 +343,7 @@ function editVilla(id){
     if(canOwner()&&$('#oN',m)){var np={ownerName:$('#oN',m).value.trim(),ownerPhone:$('#oP',m).value.trim(),ownerNote:$('#oC',m).value.trim()},op=PRIV[v.id]||{};
       if(np.ownerName!==(op.ownerName||'')||np.ownerPhone!==(op.ownerPhone||'')||np.ownerNote!==(op.ownerNote||'')){PRIV_DIRTY[v.id]=np;PRIV[v.id]=Object.assign({},op,np)}}
     if(orig){D.villas[D.villas.indexOf(orig)]=v}else D.villas.push(v);
-    m.remove();markDirty();renderAdmin();toast('Villa disimpan. Jangan lupa klik "Simpan & Publikasikan".');
+    m.remove();markDirty();renderAdmin();toast('Villa disimpan, website ke-update otomatis.');
   };
 }
 
@@ -482,24 +494,32 @@ function merge3(base,mine,latest){
   (mine.villas||[]).forEach(function(v){if(!bm[v.id]&&!res.some(function(x){return x.id===v.id}))res.push(v)}); // villa baru gue
   out.villas=res;return out;
 }
-function save(){
-  if(saving)return;
+function save(auto){
+  if(saving){if(dirty)scheduleSave(1500);return}
+  clearTimeout(AUTO_T);clearTimeout(RETRY_T);
   var btn=$('#saveBtn');
-  if(!dirty){toast('Nggak ada perubahan baru.');return}
-  saving=true;if(btn){btn.disabled=true;btn.textContent='Menyimpan…'}
+  if(!dirty){if(!auto)toast('Semua udah tersimpan.');return}
+  saving=true;var c0=CHG;if(btn){btn.disabled=true;btn.textContent='Menyimpan…'}setSt('d','Menyimpan…');
   var t=todayDS();Object.keys(D.booked).forEach(function(k){D.booked[k]=D.booked[k].filter(function(d){return d>=t});if(!D.booked[k].length)delete D.booked[k]});Object.keys(D.synced||{}).forEach(function(k){D.synced[k]=D.synced[k].filter(function(d){return d>=t});if(!D.synced[k].length)delete D.synced[k]});
   var pk=Object.keys(PRIV_DIRTY),names={};pk.forEach(function(id){var v=D.villas.find(function(x){return x.id===id});names[id]=v?v.name:''});
-  api('PUT','/api/data',{rev:REV,data:D}).then(function(r){return (pk.length?api('PUT','/api/private',{villas:PRIV_DIRTY,names:names}).then(function(){PRIV_DIRTY={}}):Promise.resolve()).then(function(){return r})}).then(function(r){REV=r.rev;flushPhotoDel();var newP=isMitra()?D.villas.filter(function(v){return v.status==='pending'&&!DUPS[v.id]}).length:0;loadDups().then(function(){if(isAdminPath())renderAdmin();if(newP)toast('Villa tersimpan & lagi nunggu verifikasi admin. Belum tampil ke tamu sampai disetujui.',5000)});(r.villas||[]).forEach(function(x){var v=D.villas.find(function(y){return y.id===x.id});if(v){v.updatedBy=x.updatedBy;v.updatedAt=x.updatedAt}});save.retry=0;BASE=JSON.parse(JSON.stringify(Object.assign({},D,{rev:REV})));if(isAdminPath())renderAdmin();dirty=false;saving=false;toast('Tersimpan! Website udah update.');var st=$('#st');if(st){st.className='st';st.textContent='Semua tersimpan'}if(btn){btn.disabled=false;btn.innerHTML='Simpan &amp; Publikasikan'}})
+  var sent=JSON.parse(JSON.stringify(D)),privSent=PRIV_DIRTY;PRIV_DIRTY={};
+  api('PUT','/api/data',{rev:REV,data:sent}).then(function(r){return (pk.length?api('PUT','/api/private',{villas:privSent,names:names}).catch(function(e){Object.keys(privSent).forEach(function(k){if(!PRIV_DIRTY[k])PRIV_DIRTY[k]=privSent[k]});throw e}):Promise.resolve()).then(function(){return r})}).then(function(r){REV=r.rev;flushPhotoDel();var newP=isMitra()?D.villas.filter(function(v){return v.status==='pending'&&!DUPS[v.id]}).length:0;loadDups().then(function(){if(isAdminPath()&&!busyTyping())renderAdmin();if(newP)toast('Villa tersimpan & lagi nunggu verifikasi admin. Belum tampil ke tamu sampai disetujui.',5000)});(r.villas||[]).forEach(function(x){var v=D.villas.find(function(y){return y.id===x.id});if(v){v.updatedBy=x.updatedBy;v.updatedAt=x.updatedAt}});save.retry=0;BASE=Object.assign(sent,{rev:REV});saving=false;
+    var more=CHG!==c0||Object.keys(PRIV_DIRTY).length>0;dirty=more;
+    if(isAdminPath()&&!busyTyping())renderAdmin();
+    if(!auto)toast('Tersimpan! Website udah update.');
+    btn=$('#saveBtn');if(btn){btn.disabled=false;btn.textContent='Simpan sekarang'}
+    if(more){setSt('d','Menyimpan otomatis…');scheduleSave(1500)}else setSt('','✓ Tersimpan otomatis '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}))})
   .catch(function(e){
     if(e.status!==409)save.retry=0;
-    saving=false;if(btn){btn.disabled=false;btn.innerHTML='Simpan &amp; Publikasikan'}
-    if(e.status===409&&!save.retry){save.retry=1;fetch('/api/data',{cache:'no-store'}).then(function(r){return r.json()}).then(function(latest){var mine=JSON.parse(JSON.stringify(D)),base=BASE||{};setData(merge3(base,mine,latest));REV=latest.rev||0;BASE=JSON.parse(JSON.stringify(latest));dirty=true;save()}).catch(function(){save.retry=0;toast('Gagal ambil data terbaru, coba simpan lagi.',4000)});return}
+    saving=false;btn=$('#saveBtn');if(btn){btn.disabled=false;btn.textContent='Simpan sekarang'}
+    if(e.status===409&&!save.retry){save.retry=1;fetch('/api/data',{cache:'no-store'}).then(function(r){return r.json()}).then(function(latest){var mine=JSON.parse(JSON.stringify(D)),base=BASE||{};setData(merge3(base,mine,latest));REV=latest.rev||0;BASE=JSON.parse(JSON.stringify(latest));dirty=true;save(auto)}).catch(function(){save.retry=0;toast('Gagal ambil data terbaru, coba simpan lagi.',4000)});return}
     if(e.status===409)confirmBox('Data udah diubah dari perangkat lain','Muat ulang data terbaru? Perubahan di layar ini yang belum disimpan akan hilang.','Muat ulang').then(function(ok){if(ok){dirty=false;load().then(renderAdmin)}});
     else if(e.status===401){toast('Sesi habis, login lagi ya. Perubahan di layar ini belum tersimpan.',5000);setTok('');renderLogin()}
-    else toast('Gagal menyimpan: '+e.message,5000);
+    else{setSt('d','⚠️ Gagal nyimpen, nyoba lagi otomatis…');if(!auto)toast('Gagal menyimpan: '+e.message,5000);clearTimeout(RETRY_T);RETRY_T=setTimeout(function(){if(dirty&&USER)save(true)},15000)}
   });
 }
-window.addEventListener('beforeunload',function(e){if(dirty&&isAdminPath()){e.preventDefault();e.returnValue=''}});
+window.addEventListener('beforeunload',function(e){if((dirty||saving)&&isAdminPath()){if(dirty&&!saving)save(true);e.preventDefault();e.returnValue=''}});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&dirty&&!saving&&USER&&isAdminPath())save(true)});
 
 function renderLogin(){
   var last='';try{last=localStorage.getItem('pgvName')||''}catch(_){}
