@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261126g';
+var APP_VER='20261126h';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -164,9 +164,10 @@ function card(i,ns,g,isOver){
     ?'<div class="price"><small>mulai dari</small><b>'+rp(minRate(v))+'</b><small>per malam</small></div>'
     :'<div class="price"><small>Estimasi '+ns.length+' malam</small><b>'+rp(q.total)+'</b><small>'+parts.join(' · ')+'</small></div>';
   var extra=(v.capStd&&g>v.capStd)?'<div class="note">Lebih dari '+v.capStd+' orang, mungkin ada biaya extra bed.</div>':'';
-  var meta=[v.location,v.bedrooms?v.bedrooms+' kamar':'',v.bathrooms?v.bathrooms+' kamar mandi':'','maks '+capOf(v)+' orang'].filter(Boolean).map(esc).join(' · ');
+  var meta=v.location?'📍 '+esc(v.location):'';
+  var spec='<div class="spec">'+(v.bedrooms?'<span>🛏️ <b>'+v.bedrooms+'</b> Kamar</span>':'')+(v.bathrooms?'<span>🛁 <b>'+v.bathrooms+'</b> Kamar Mandi</span>':'')+'<span>👥 Maks <b>'+capOf(v)+'</b> orang</span></div>';
   var txt='Halo '+s.brand+', saya mau booking *'+v.name+'*\nCheck-in: '+fmtD(ns[0],{weekday:'long'})+'\nCheck-out: '+fmtD(addDays(ns[ns.length-1],1),{weekday:'long'})+' ('+ns.length+' malam)\nJumlah tamu: '+g+' orang\nMasih available?';
-  return '<article class="vc'+(isOver?' over':'')+'">'+photos+'<div class="vb"><h3>'+esc(v.name)+'</h3><div class="meta">'+meta+'</div>'+
+  return '<article class="vc'+(isOver?' over':'')+'">'+photos+'<div class="vb"><h3>'+esc(v.name)+'</h3>'+(meta?'<div class="meta">'+meta+'</div>':'')+spec+
     ((v.facilities||[]).length?'<div class="chips">'+v.facilities.map(function(f){return '<span>'+esc(f)+'</span>'}).join('')+'</div>':'')+
     (v.desc?'<p class="desc">'+esc(v.desc)+'</p>':'')+extra+
     '<div class="vf">'+price+'<div class="row" style="gap:8px">'+(villaSlug(v)?'<a class="btn" href="/villa/'+villaSlug(v)+'">Detail</a>':'')+(s.wa?'<a class="btn wa" target="_blank" rel="noopener" href="'+waLink(txt)+'">Booking via WhatsApp</a>':'')+'</div></div></div></article>';

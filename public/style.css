@@ -205,3 +205,6 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;
 .note.warn{font-size:14px;background:#fff4e5;border:1px solid #f3c98b;color:#6b3d00;padding:10px 14px;border-radius:12px}
 .note.warn .rl .it{background:#fff}
 .rl .it small{color:var(--muted)}
+.spec{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px}
+.spec span{display:inline-flex;align-items:center;gap:4px;background:#eef4ef;color:var(--ink);border:1px solid #d5e4d8;border-radius:10px;padding:6px 10px;font-size:14px;font-weight:600}
+.spec b{font-size:17px;font-weight:800}
