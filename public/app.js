@@ -269,16 +269,16 @@ function buParse(lines,fileName){var o={kamar:0,mandi:0,kap:0,wd:0,we:0,semi:0,l
   for(var j=0;j<left.length;j++){var s=left[j];if(/harga|rp\s*\d|wee?k\s*day|fasilitas/i.test(s))break;var lm=/lokasi\s*:?\s*(.+)$/i.exec(s);if(lm){o.lok=lm[1];break}
     var hit=BU_LOCS.find(function(k){return new RegExp('\\b'+k+'\\b','i').test(s)});if(hit){var part=s.split(/,|kamar\s*[-–]/i).pop().trim();o.lok=new RegExp(hit,'i').test(part)?part:s.slice(s.toLowerCase().indexOf(hit.toLowerCase()));break}}
   o.lok=o.lok.replace(/\s*[–—-]\s*/g,' - ').replace(/kami pun menyediakan.*$/i,'').replace(/\s+/g,' ').replace(/^[\s,.-]+|[\s,.-]+$/g,'').slice(0,60);
-  var st=all.search(/fasilitas/i);if(st<0){var k=all.search(/\d+\s*kamar\s*tidur/i);st=k}
+  var st=0;
   if(st>=0){all.slice(st).split('\n').forEach(function(l){l.split(/\s{3,}/).forEach(function(c){c=c.trim();if(!/^[•·▪●○✓✔√\-−–*-]/.test(c))return;var it=c.replace(/^[•·▪●○✓✔√\-−–*-\s]+/,'').replace(/[.,"”]+$/,'').trim();
     if(!it||/rp|=|klik|http|catering|catring|kambing|organ|orgen|extra b|balon|testimoni|menyediakan|layanan|^\d+\.|instagram|tiktok|youtube|^wa /i.test(it))return;if(/^\d+\s*kamar\s*(tidur|mandi)|^max|^\d+\s*lantai$|^kapasitas|^fasilitas/i.test(it))return;
     it=it.replace(/,?\s*max\s*\d+.*$/i,'').replace(/[,\/]/g,' ').replace(/\s+/g,' ').trim();if(it&&o.fas.map(function(x){return x.toLowerCase()}).indexOf(it.toLowerCase())<0)o.fas.push(it)})})}
   /* Desain spek baru: fasilitas berupa daftar/kotak tanpa tanda bullet. Ambil semua sel teks di bawah judul "Fasilitas" sampai ketemu judul lain */
-  var fi=-1;lines.forEach(function(c,k){if(fi<0&&c.some(function(x){return /^fasilitas\b/i.test(x)}))fi=k});
+  var fi=o.fas.length>=3?-2:-1;if(fi===-1)lines.forEach(function(c,k){if(fi<0&&c.some(function(x){return /^fasilitas\b/i.test(x)}))fi=k});
   if(fi>=0){for(var q=fi;q<lines.length;q++){var stop=false;lines[q].forEach(function(cell){
       cell.split(/\s{2,}|\s*[•·▪●○✓✔√|]\s*/).forEach(function(c){c=c.replace(/^fasilitas\s*(villa)?\s*:?/i,'').replace(/^[\-−–*\ue000-\uf8ff\s]+/,'').replace(/[.,"”:]+$/,'').trim();
         if(q>fi&&/^(layanan|tambahan|harga|catatan|note|hubungi|kontak|contact|booking|reservasi|syarat|ketentuan|check.?in|alamat|lokasi|kapasitas|weekday|weekend)\b/i.test(c)){stop=true;return}
-        if(!c||c.length<3||c.length>40||/rp|=|\d{3,}|http|@|klik|instagram|tiktok|youtube|wa\b|^\d+\.|catering|catring|kambing|organ|orgen|extra b|balon|^max|^\d+\s*(kamar|orang|lantai)|^fasilitas|puncakgovillas/i.test(c))return;
+        if(!c||c.length<3||c.length>40||/rp|=|\d{3,}|http|@|klik|instagram|tiktok|youtube|wa\b|^\d+\.|catering|catring|kambing|organ|orgen|extra b|balon|^max|^\d+\s*(kamar|orang|lantai)|^fasilitas|puncakgovillas|kami pun|menyediakan|testimoni|pembayaran|^cek\b/i.test(c))return;
         c=c.replace(/\s+/g,' ');if(o.fas.map(function(x){return x.toLowerCase()}).indexOf(c.toLowerCase())<0)o.fas.push(c)})});if(stop)break}}
   if(!o.we){var fp=/^\s*(\d+)[.,]?(\d)?/.exec(fileName||'');if(fp&&+fp[1]<50){o.we=+fp[1]*1e6+(+(fp[2]||0))*1e5;o.weGuess=true}}
   return o}
