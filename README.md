@@ -58,3 +58,8 @@ Tombol **Upload Folder / PDF** di tab Villa (admin & staff). Folder: subfolder p
 Tiap villa (yang tampil) dicatat kapan jadwalnya terakhir diupdate (`calAt`, `calBy`, dihitung server).
 Dianggap update kalau tanggal terisi hari ini ke depan berubah, atau ada yang klik "Udah dicek, nggak ada perubahan".
 Kalau lebih dari `settings.calDays` hari (default 6), muncul peringatan di atas halaman admin & di tab jadwal. Mitra cuma lihat villanya sendiri.
+
+## Kalender harga, peraturan, FAQ, promo
+- Halaman `/villa/<slug>` nampilin kalender harga 6 bulan (lib/pricing.js = hitungan harga versi server, harus sama dengan app.js), tanggal penuh, klik tanggal → WhatsApp, dan "jadwal terakhir diperbarui" (`calAt`).
+- Peraturan: `settings.checkin`, `settings.checkout`, `settings.rules` (per baris) + `villa.rules`. FAQ & langkah booking: `settings.faq`, `settings.guide` (default di lib/content.js). Halaman `/panduan-booking` + FAQ di homepage (JSON-LD FAQPage).
+- Diskon per villa: `disc` (%), `discFrom`, `discTo`. Banner promo: `settings.promo = {on,title,text,until}` dengan hitung mundur.

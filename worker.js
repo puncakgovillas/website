@@ -51,7 +51,7 @@ export default {
       return photoFile.onRequestGet({ request, env, ctx, params: { name: m[1] } });
     }
     // Halaman buat Google: detail villa, per area, per kategori, sitemap, robots
-    if (request.method === 'GET' && /^\/(villa(\/[^/]*|-[a-z0-9-]+)?|sewa-villa-[a-z0-9-]+|sitemap\.xml|robots\.txt)\/?$/.test(url.pathname)) {
+    if (request.method === 'GET' && /^\/(villa(\/[^/]*|-[a-z0-9-]+)?|sewa-villa-[a-z0-9-]+|panduan-booking|sitemap\.xml|robots\.txt)\/?$/.test(url.pathname)) {
       try { const r = await handleSeo(request, env); if (r) return r; } catch (e) { console.error('seo', e); }
     }
     // Halaman utama: tempel daftar area & kategori (teks + link) biar kebaca Google

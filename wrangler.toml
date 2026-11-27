@@ -6,7 +6,7 @@ compatibility_date = "2026-11-01"
 directory = "./public"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/photos/*", "/", "/villa", "/villa/*", "/villa-*", "/sewa-villa-*", "/sitemap.xml", "/robots.txt", "/hf/*"]
+run_worker_first = ["/api/*", "/photos/*", "/", "/villa", "/villa/*", "/villa-*", "/sewa-villa-*", "/sitemap.xml", "/robots.txt", "/panduan-booking", "/hf/*"]
 
 [[r2_buckets]]
 binding = "BUCKET"
