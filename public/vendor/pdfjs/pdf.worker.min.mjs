@@ -1,3 +1,5 @@
+/* PuncakGoVillas: polyfill Safari/iPhone (ReadableStream belum bisa di-loop pakai for await) */
+if(typeof ReadableStream!=="undefined"&&!ReadableStream.prototype[Symbol.asyncIterator]){ReadableStream.prototype.values=ReadableStream.prototype[Symbol.asyncIterator]=function(){var r=this.getReader();return{next:function(){return r.read()},return:function(){try{r.releaseLock()}catch(e){}return Promise.resolve({done:true,value:undefined})},[Symbol.asyncIterator]:function(){return this}}}}
 /**
  * @licstart The following is the entire license notice for the
  * JavaScript code in this page

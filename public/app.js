@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261127k';
+var APP_VER='20261127l';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -302,7 +302,7 @@ function paneDup(p){
 }
 /* ===== Upload massal: pilih FOLDER (subfolder per villa) atau beberapa file PDF villa ===== */
 var PDFJS_P=null;
-function loadPDFJS(){if(!PDFJS_P)PDFJS_P=import('/vendor/pdfjs/pdf.min.mjs').then(function(m){m.GlobalWorkerOptions.workerSrc='/vendor/pdfjs/pdf.worker.min.mjs';return m}).catch(function(e){PDFJS_P=null;throw e});return PDFJS_P}
+function loadPDFJS(){if(!PDFJS_P)PDFJS_P=import('/vendor/pdfjs/pdf.min.mjs?v=2').then(function(m){m.GlobalWorkerOptions.workerSrc='/vendor/pdfjs/pdf.worker.min.mjs?v=2';return m}).catch(function(e){PDFJS_P=null;throw e});return PDFJS_P}
 var BU_LOCS=['Cisarua','Ciloto','Kota Bunga','Cipanas','Hanjawar','Cimacan','Megamendung','Tugu','Cibodas','Puncak Resort','Pacet','Sindanglaya','Gadog','Ciburial','Safari','Puncak'];
 function buNum(s){s=String(s||'').replace(/^[.,]+|[.,]+$/g,'');if(/^\d{1,3}([.,]\d{3})+$/.test(s)||/^\d+$/.test(s))return parseInt(s.replace(/\D/g,''),10)||0;var g=s.split(/[.,]/);if(g.length>=2&&/^\d+$/.test(g[0]))return parseInt(g[0],10)*1e6+parseInt((g[1]+'0').charAt(0),10)*1e5;return parseInt(s.replace(/\D/g,''),10)||0}
 /* Nama villa dari nama file/folder: buang angka harga di depan, (N Kamar), PGV, Copy, dst */
