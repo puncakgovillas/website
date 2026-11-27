@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261127j';
+var APP_VER='20261127k';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -101,9 +101,10 @@ function renderGuest(){
    (dirty?'<div class="draftbar">Ini preview. Perubahan belum disimpan. <a href="/admin">Balik ke admin</a></div>':'')+
    '<header class="hero" style="background-image:linear-gradient(180deg,rgba(12,34,22,.78) 0%,rgba(12,34,22,.55) 45%,rgba(16,44,28,.75) 100%),url(&quot;'+BG+'&quot;)"><div class="wrap"><div class="logo"><img src="'+LOGO+'" alt="'+esc(s.brand)+'"></div><h1>Cari villa yang kosong<br>di tanggal kamu</h1><p>'+esc(s.tagline)+'</p><div class="htrust"><span>🏡 <b>'+visVillas().length+'</b> villa di Puncak</span><span>🏢 Kantor sendiri di Puncak</span><span>💬 Booking via WhatsApp</span></div></div></header>'+
    promoBanner()+'<main class="wrap"><form id="sf" class="search" novalidate>'+
-     '<label>Check-in<input type="date" name="ci" min="'+t+'" value="'+esc(G.ci)+'"></label>'+
-     '<label>Check-out<input type="date" name="co" min="'+(G.ci?addDays(G.ci,1):addDays(t,1))+'" value="'+esc(G.co)+'"></label>'+
-     '<label>Jumlah orang<div class="stepper"><button type="button" data-step="-1" aria-label="Kurangi">−</button><input name="g" inputmode="numeric" placeholder="0" value="'+esc(G.g)+'"><button type="button" data-step="1" aria-label="Tambah">+</button></div></label>'+
+     '<div class="sfh"><b>🔎 Cek villa yang kosong</b><span>Isi 3 kolom ini, langsung keluar villa yang available + harganya</span></div>'+
+     '<label class="fd"><span class="fl">📅 Check-in</span><input type="date" name="ci" min="'+t+'" value="'+esc(G.ci)+'"></label>'+
+     '<label class="fd"><span class="fl">📅 Check-out</span><input type="date" name="co" min="'+(G.ci?addDays(G.ci,1):addDays(t,1))+'" value="'+esc(G.co)+'"></label>'+
+     '<label class="gbox'+(num(G.g)?' ok':'')+'"><span class="fl">👥 Jumlah orang <em>wajib</em></span><div class="stepper"><button type="button" data-step="-1" aria-label="Kurangi">−</button><input name="g" inputmode="numeric" placeholder="0" value="'+esc(G.g)+'"><button type="button" data-step="1" aria-label="Tambah">+</button></div></label>'+
      '<label class="budget"><span>Range budget <span class="opt">(opsional, boleh isi salah satu)</span></span><div class="bud"><span>Rp</span><input name="bmin" inputmode="numeric" placeholder="2.000.000" aria-label="Budget dari" value="'+esc(G.bmin)+'"><em class="dash">–</em><input name="bmax" inputmode="numeric" placeholder="5.000.000" aria-label="Budget sampai" value="'+esc(G.bmax)+'"><select name="bmode"><option value="night"'+(G.bmode==='night'?' selected':'')+'>per malam</option><option value="total"'+(G.bmode==='total'?' selected':'')+'>total</option></select></div></label>'+
      '<button class="btn primary big" type="submit">🔍 Cari Villa</button>'+
      '<div class="qd"><span>Pilih cepat:</span>'+quickDates().map(function(q,i){return '<button type="button" data-qd="'+i+'">'+q[0]+'</button>'}).join('')+'</div>'+
@@ -114,8 +115,9 @@ function renderGuest(){
   var f=$('#sf');
   f.ci.addEventListener('change',function(){G.ci=f.ci.value;if(G.ci){f.co.min=addDays(G.ci,1);if(!G.co||G.co<=G.ci){G.co=addDays(G.ci,1);f.co.value=G.co}}});
   f.co.addEventListener('change',function(){G.co=f.co.value});
-  f.g.addEventListener('input',function(){f.g.value=f.g.value.replace(/\D/g,'').slice(0,3);G.g=f.g.value});
-  $$('[data-step]',f).forEach(function(b){b.addEventListener('click',function(){var v=Math.max(1,num(f.g.value)+Number(b.dataset.step));f.g.value=v;G.g=String(v)})});
+  function gOk(){var b=f.g.closest('.gbox');if(b)b.classList.toggle('ok',num(f.g.value)>0)}
+  f.g.addEventListener('input',function(){f.g.value=f.g.value.replace(/\D/g,'').slice(0,3);G.g=f.g.value;gOk()});
+  $$('[data-step]',f).forEach(function(b){b.addEventListener('click',function(){var v=Math.max(1,num(f.g.value)+Number(b.dataset.step));f.g.value=v;G.g=String(v);gOk()})});
   ['bmin','bmax'].forEach(function(k){f[k].addEventListener('input',function(){var v=num(f[k].value);f[k].value=v?v.toLocaleString('id-ID'):'';G[k]=f[k].value})});
   f.bmode.addEventListener('change',function(){G.bmode=f.bmode.value});
   $$('[data-qd]',f).forEach(function(b){b.addEventListener('click',function(){var q=quickDates()[+b.dataset.qd];G.ci=q[1];G.co=q[2];f.ci.value=G.ci;f.co.value=G.co;f.co.min=addDays(G.ci,1);$$('[data-qd]',f).forEach(function(x){x.classList.toggle('on',x===b)});if(!num(f.g.value)){f.g.focus();toast('Tanggal udah dipilih. Isi jumlah orang, lalu Cari Villa');return}f.requestSubmit?f.requestSubmit():f.dispatchEvent(new Event('submit',{cancelable:true}))})});

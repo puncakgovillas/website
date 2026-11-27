@@ -278,3 +278,21 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;
 .vi .act{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 select.ra{width:auto;max-width:190px;padding:6px 8px;font-size:13px;border-radius:10px}
 .cal tr.lk td.vn{color:var(--muted)}.cal td.c.lk{cursor:not-allowed;opacity:.55}
+/* ===== Kotak pencarian di-highlight ===== */
+.search{border:2px solid #f0c27a;background:linear-gradient(180deg,#fffaf0 0%,#ffffff 55%);box-shadow:0 14px 40px rgba(24,38,29,.18),0 0 0 6px rgba(240,194,122,.18)}
+.search label{min-width:0}
+.search input[type=date]{min-width:0;width:100%;max-width:100%;-webkit-appearance:none;appearance:none;display:block}
+.sfh{grid-column:1/-1;display:flex;flex-direction:column;gap:2px;margin:-4px 0 2px}
+.sfh b{font-size:18px;color:var(--green);letter-spacing:-.01em}.sfh span{font-size:13px;color:var(--muted)}
+.search .fl{font-weight:800;color:var(--ink);font-size:14px}
+.search .fd input{background:#f2f8f3;border:1.5px solid #cfe3d4;font-weight:700;color:var(--green)}
+.gbox{background:linear-gradient(135deg,#fff1d6,#ffe2b0);border:2px solid #f0a93a;border-radius:14px;padding:10px 12px!important;position:relative;animation:gpulse 1.8s ease-in-out infinite}
+.gbox .fl em{font-style:normal;background:#d9480f;color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:6px;padding:2px 6px;margin-left:6px;vertical-align:2px}
+.gbox .stepper{border:0;background:transparent;gap:8px;margin-top:6px}
+.gbox .stepper button{width:44px;height:44px;border-radius:12px;background:var(--green);color:#fff;font-size:22px;font-weight:700}
+.gbox .stepper input{border-radius:12px;background:#fff;font-size:20px;font-weight:800;color:var(--ink);border:1.5px solid #f0c27a}
+.gbox.ok{background:linear-gradient(135deg,#e7f5ea,#d3ecd9);border-color:#2f8a4f;animation:none}
+.gbox.ok .fl em{background:#2f8a4f}.gbox.ok .fl em:after{content:' ✓'}
+@keyframes gpulse{0%,100%{box-shadow:0 0 0 0 rgba(240,169,58,.55)}50%{box-shadow:0 0 0 7px rgba(240,169,58,0)}}
+@media(max-width:759px){.gbox{grid-column:1/-1}}
+@media(min-width:760px){.search{grid-template-columns:1fr 1fr 230px}}
