@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261127c';
+var APP_VER='20261127d';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -124,7 +124,7 @@ function quickDates(){var t=todayDS(),w=dow(t),sat=addDays(t,(6-w+7)%7||(w===6?0
   return [['Malam ini',t,addDays(t,1)],['Besok',addDays(t,1),addDays(t,2)],['Weekend ini',w===6||w===0?t:fri,addDays(sat,1)],['Weekend depan',addDays(fri,7),addDays(sat,8)]].map(function(q){if(q[1]<t)q[1]=t;if(q[2]<=q[1])q[2]=addDays(q[1],1);return q})}
 function hasF(v,re){return re.test((v.facilities||[]).join(' ')+' '+(v.desc||''))}
 function homeSections(){var vs=visVillas(),s=D.settings;
-  var cats=[['🏊','Kolam renang','/villa-kolam-renang-puncak',vs.filter(function(v){return hasF(v,/kolam|pool|renang/i)}).length],['👨‍👩‍👧‍👦','Rombongan 30+','/villa-rombongan-puncak',vs.filter(function(v){return capOf(v)>=30}).length],['🎤','Ada karaoke','/villa-karaoke-puncak',vs.filter(function(v){return hasF(v,/karaoke/i)}).length],['💸','Harga hemat','/villa-murah-puncak',0],['🏡','Semua villa','/villa',vs.length]];
+  var cats=[['🏊','Kolam renang','/villa-kolam-renang-puncak',vs.filter(function(v){return hasF(v,/kolam|pool|renang/i)}).length],['👨‍👩‍👧‍👦','Rombongan 50+','/villa-rombongan-puncak',vs.filter(function(v){return capOf(v)>=50}).length],['🎤','Ada karaoke','/villa-karaoke-puncak',vs.filter(function(v){return hasF(v,/karaoke/i)}).length],['💸','Harga hemat','/villa-murah-puncak',0],['🏡','Semua villa','/villa',vs.length]];
   var pick=vs.filter(function(v){return goodPhotos(v).length}).sort(function(a,b){return (discActive(b)-discActive(a))||((b.calAt||'')>(a.calAt||'')?1:-1)}).slice(0,12);
   var mr=function(v){var m=minRate(v),pc=discActive(v);return pc?Math.round(m*(100-pc)/100/10000)*10000:m};
   return '<section class="hs"><div class="hsh"><h2>Cari sesuai kebutuhan</h2></div><div class="cats">'+cats.map(function(c){return '<a href="'+c[2]+'"><i>'+c[0]+'</i><b>'+c[1]+'</b>'+(c[3]?'<span>'+c[3]+' villa</span>':'<span>Termurah dulu</span>')+'</a>'}).join('')+'</div></section>'+
