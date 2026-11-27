@@ -63,3 +63,7 @@ Kalau lebih dari `settings.calDays` hari (default 6), muncul peringatan di atas 
 - Halaman `/villa/<slug>` nampilin kalender harga 6 bulan (lib/pricing.js = hitungan harga versi server, harus sama dengan app.js), tanggal penuh, klik tanggal → WhatsApp, dan "jadwal terakhir diperbarui" (`calAt`).
 - Peraturan: `settings.checkin`, `settings.checkout`, `settings.rules` (per baris) + `villa.rules`. FAQ & langkah booking: `settings.faq`, `settings.guide` (default di lib/content.js). Halaman `/panduan-booking` + FAQ di homepage (JSON-LD FAQPage).
 - Diskon per villa: `disc` (%), `discFrom`, `discTo`. Banner promo: `settings.promo = {on,title,text,until}` dengan hitung mundur.
+
+## Pengelola villa & batasan admin
+- `villa.ownerAcc` = akun (admin/staff atau mitra) yang pegang villa. Pemilik bisa ganti langsung dari daftar villa.
+- Akun admin (role `staff`) cuma bisa ngubah tanggal terisi villa yang `ownerAcc`-nya dia (dicek di server: `limitStaff` di functions/api/data.js) dan nggak bisa ganti pengelola. Sinkron dari Pembukuan cuma buat pemilik.

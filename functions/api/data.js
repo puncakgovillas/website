@@ -44,6 +44,7 @@ export async function onRequestPut({ request, env }) {
   const nowIso = new Date().toISOString();
   if (user.role === 'mitra') mergeMitra(current, incoming, user, nowIso);
   else stampTeam(current, incoming, user, nowIso);
+  if (user.role === 'staff') limitStaff(current, incoming, user);
   stampCal(current, incoming, user, nowIso);
   const { items, changedIds } = describeChanges(current, incoming);
   // Tandai villa yang diubah: siapa & kapan
@@ -57,6 +58,22 @@ export async function onRequestPut({ request, env }) {
   });
   await addLog(env, user, items);
   return json({ ok: true, rev: next.rev, villas: next.villas.map((v) => ({ id: v.id, updatedBy: v.updatedBy, updatedAt: v.updatedAt, calAt: v.calAt, calBy: v.calBy })) });
+}
+
+// Akun admin (staff) cuma boleh ngubah tanggal terisi villa yang ditugasin ke dia (ownerAcc), dan nggak boleh ganti pengelola villa.
+function limitStaff(current, incoming, user) {
+  const cur = new Map((current.villas || []).map((v) => [v.id, v]));
+  const mine = (id) => { const o = cur.get(id); return o ? o.ownerAcc === user.id : false; };
+  incoming.villas.forEach((v) => { const o = cur.get(v.id); if (o) { if (o.ownerAcc) v.ownerAcc = o.ownerAcc; else delete v.ownerAcc; } else delete v.ownerAcc; });
+  for (const key of ['booked', 'synced']) {
+    const ob = current[key] || {}, nb = incoming[key] || (incoming[key] = {});
+    const ids = new Set([...Object.keys(ob), ...Object.keys(nb)]);
+    ids.forEach((id) => {
+      if (mine(id) || !cur.has(id)) return;
+      if (JSON.stringify(ob[id] || []) === JSON.stringify(nb[id] || [])) return;
+      if (ob[id]) nb[id] = ob[id]; else delete nb[id];
+    });
+  }
 }
 
 // Kapan jadwal villa terakhir diupdate (buat pengingat "udah lebih dari 6 hari belum update").
