@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261126h';
+var APP_VER='20261127a';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -357,7 +357,11 @@ function buGroup(files,mode){var groups=[];
   var map={};files.forEach(function(f){var rp=(f.webkitRelativePath||f.name).split('/');if(/^\./.test(rp[rp.length-1]))return;var di=rp.length-2;if(di>0&&/^(foto|fotos|photo|photos|img|images|gambar|pict|pictures)$/i.test(rp[di]))di--;var key=rp[Math.max(0,di)];var g=map[key];if(!g){g=map[key]={src:key,label:key,pdf:null,imgs:[],skipped:[]};groups.push(g)}
     if(BU_IMG.test(f.name))g.imgs.push(f);else if(/\.pdf$/i.test(f.name)){if(!g.pdf)g.pdf=f}else if(/\.(heic|heif)$/i.test(f.name))g.skipped.push(f.name)});
   groups.forEach(function(g){g.imgs.sort(buNatSort)});return groups.filter(function(g){return g.imgs.length||g.pdf})}
+function buMitras(){return isOwner()?ACCS.filter(function(a){return a.type==='mitra'}):[]}
+function buAccSel(i,g){var ms=buMitras();if(!ms.length)return '';if(g.acc===undefined)g.acc=g.match&&g.match.ownerAcc||'';
+  return '<select data-acc="'+i+'" title="Dikelola akun" style="width:auto;max-width:180px"><option value="">Dikelola: Tim admin</option>'+ms.map(function(a){return '<option value="'+esc(a.id)+'"'+(g.acc===a.id?' selected':'')+'>Dikelola: '+esc(a.name)+'</option>'}).join('')+'</select>'}
 function bulkUpload(){
+  if(isOwner()&&!ACCS.length)loadAccs();
   fetch('/version.json?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.v&&j.v!==APP_VER&&window.confirm('Ada versi baru fitur upload. Muat ulang halaman dulu ya (data yang udah kesimpen aman).'))location.reload()}).catch(function(){});
   var m=modal('<h2>Upload villa dari folder / PDF</h2>'+
     '<p class="hint">Pilih salah satu:<br>• <b>Folder</b>: satu folder besar yang isinya <b>subfolder per villa</b> (nama subfolder = nama villa). Isinya foto (JPG/PNG), boleh ada PDF villanya juga buat ambil data.<br>• <b>PDF</b>: pilih beberapa file PDF villa sekaligus (kayak PDF yang biasa dikirim ke tamu). Nama villa diambil dari nama file, foto dari halaman-halamannya, data (kamar, kapasitas, harga, fasilitas) dari halaman terakhir.</p>'+
@@ -372,8 +376,10 @@ function bulkUpload(){
     groups.forEach(function(g){var nm=buName(g.src);g.name=nm.name;g.kamarFromName=nm.kamar;g.match=idx[buKey(g.name)]||null});
     if(!groups.length){$('#buL',m).innerHTML='';$('#buE',m).textContent=mode==='pdf'?'Nggak ada file PDF yang kepilih.':'Di folder itu nggak ketemu foto (JPG/PNG) atau PDF. Pastiin isinya subfolder per villa.';$('[data-ok]',m).disabled=true;return}
     $('#buE',m).textContent='';$('#buO',m).style.display='';
-    $('#buL',m).innerHTML='<p class="hint" style="margin:0 0 6px">'+groups.length+' villa ketemu. Nama bisa diedit dulu sebelum mulai. Villa yang namanya sama dengan yang udah ada bakal <b>diupdate</b> (data yang udah diisi nggak ditimpa, cuma yang kosong yang dilengkapin).</p><div class="bul">'+groups.map(function(g,i){return '<div class="bur" data-i="'+i+'"><input value="'+esc(g.name)+'" data-nm="'+i+'">'+(isMitra()?'<input data-ph="'+i+'" inputmode="tel" placeholder="No. HP pemilik villa" style="max-width:170px'+(g.match?';display:none':'')+'">':'')+'<span class="badge'+(g.match?'':' on')+'">'+(g.match?'Update':'Baru')+'</span><span class="bus">'+(g.imgs.length?g.imgs.length+' foto':'')+(g.pdf?(g.imgs.length?' + ':'')+'PDF':'')+(g.skipped.length?' · '+g.skipped.length+' HEIC dilewati':'')+'</span></div>'}).join('')+'</div>';
+    $('#buL',m).innerHTML='<p class="hint" style="margin:0 0 6px">'+groups.length+' villa ketemu. Nama bisa diedit dulu sebelum mulai. Villa yang namanya sama dengan yang udah ada bakal <b>diupdate</b> (ikut pilihan "Data buat villa yang udah ada" di atas).'+(buMitras().length?' Pilih juga <b>dikelola siapa</b>: kalau dikelola mitra, mitra itu yang update jadwalnya.':'')+'</p>'+(buMitras().length&&groups.length>1?'<label style="flex-direction:row;align-items:center;gap:8px;margin:0 0 8px">Set semua dikelola: <select id="buAll" style="width:auto"><option value="-">— pilih —</option><option value="">Tim admin</option>'+buMitras().map(function(a){return '<option value="'+esc(a.id)+'">'+esc(a.name)+'</option>'}).join('')+'</select></label>':'')+'<div class="bul">'+groups.map(function(g,i){return '<div class="bur" data-i="'+i+'"><input value="'+esc(g.name)+'" data-nm="'+i+'">'+(isMitra()?'<input data-ph="'+i+'" inputmode="tel" placeholder="No. HP pemilik villa" style="max-width:170px'+(g.match?';display:none':'')+'">':'')+buAccSel(i,g)+'<span class="badge'+(g.match?'':' on')+'">'+(g.match?'Update':'Baru')+'</span><span class="bus">'+(g.imgs.length?g.imgs.length+' foto':'')+(g.pdf?(g.imgs.length?' + ':'')+'PDF':'')+(g.skipped.length?' · '+g.skipped.length+' HEIC dilewati':'')+'</span></div>'}).join('')+'</div>';
     $$('[data-nm]',m).forEach(function(inp){inp.oninput=function(){var g=groups[+inp.dataset.nm];g.name=inp.value.trim();g.match=myVillas().find(function(v){return buKey(v.name)===buKey(g.name)})||null;var b=inp.parentNode.querySelector('.badge');b.className='badge'+(g.match?'':' on');b.textContent=g.match?'Update':'Baru';var ph=inp.parentNode.querySelector('[data-ph]');if(ph)ph.style.display=g.match?'none':''}});
+    $$('[data-acc]',m).forEach(function(sel){sel.onchange=function(){groups[+sel.dataset.acc].acc=sel.value}});
+    if($('#buAll',m))$('#buAll',m).onchange=function(){var val=this.value;if(val==='-')return;$$('[data-acc]',m).forEach(function(sel){sel.value=val;groups[+sel.dataset.acc].acc=val})};
     $$('[data-ph]',m).forEach(function(inp){inp.oninput=function(){groups[+inp.dataset.ph].phone=inp.value.trim()}});
     $('[data-ok]',m).disabled=false}
   $('#buFi',m).onchange=function(){picked(this.files,'folder');this.value=''};
@@ -405,6 +411,7 @@ function bulkUpload(){
           if(d.we&&(isNew||over||!v.priceHigh))v.priceHigh=d.we+1000000;
           if(d.fas&&d.fas.length&&(isNew||over||!(v.facilities||[]).length))v.facilities=d.fas;
           var miss=[];if(!v.priceWeekday&&!v.priceWeekend)miss.push('harga');if(!v.capStd&&!v.capMax)miss.push('kapasitas');
+          if(!isMitra()&&g.acc!==undefined&&buMitras().length){if(g.acc)v.ownerAcc=g.acc;else delete v.ownerAcc}
           if(isNew){if(miss.length)v.active=false;if(isMitra()){v.ownerAcc=USER.id;v.status='pending';var op={ownerName:'',ownerPhone:g.phone||'',ownerNote:''};PRIV_DIRTY[v.id]=op;PRIV[v.id]=op}D.villas.push(v)}
           markDirty();done++;
           stat(i,(isNew?'✓ ditambah':'✓ diupdate')+' · '+up.length+' foto'+(miss.length?' · ⚠️ belum ada '+miss.join(' & ')+(isNew?' (disembunyiin dulu)':''):'')+(d.weGuess?' · harga weekend dari nama file':'')+(d.fas&&d.fas.length?' · '+d.fas.length+' fasilitas':'')+pickInfo+(readErr?' · ❌ PDF gagal dibaca: '+String(readErr).slice(0,80):''),miss.length?'warn':'ok');
