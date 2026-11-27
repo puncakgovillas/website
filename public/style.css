@@ -269,3 +269,6 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;
 .pvb{border:1px solid var(--line);border-radius:14px;padding:10px;background:#fff}
 .pvl{max-height:260px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:2px 12px}
 .pvl label.chk{font-weight:500;font-size:14px;padding:5px 2px}
+.promo .pb+.pb{margin-top:10px}
+.prc{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:0 0 10px;background:#fff}.prc.open{border-color:#d93a2b;box-shadow:0 4px 16px rgba(217,58,43,.08)}
+.prh{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}

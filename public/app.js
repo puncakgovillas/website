@@ -1,5 +1,5 @@
 (function(){
-var APP_VER='20261127g';
+var APP_VER='20261127h';
 var RAW={};
 var DEFS={brand:'PuncakGoVillas',tagline:'Pilih tanggal, jumlah orang, dan budget kamu. Kami tampilkan villa yang masih kosong.',wa:'',priceMode:'total',showOver:true,overPct:20};
 var D=null,REV=0;
@@ -66,8 +66,10 @@ function isWeekend(ds){var t=dayType(ds);return t==='weekend'||t==='semi'}
 function semiPrice(v){if(v.priceSemi)return v.priceSemi;var a=v.priceWeekday,b=v.priceWeekend;if(a&&b)return Math.round((a+b)/2/50000)*50000;return b||a||0}
 /* Diskon per villa: v.disc (%) buat malam v.discFrom..v.discTo (kosong = tanpa batas). Sama dengan lib/pricing.js */
 function villaDisc(v,ds){var pc=+v.disc||0;if(pc<=0||pc>=90)return 0;if(v.discFrom&&ds<v.discFrom)return 0;if(v.discTo&&ds>v.discTo)return 0;return pc}
-/* Promo tanggal tertentu (Pengaturan > Banner promo): diskon % buat SEMUA villa di malam-malam yang dipilih */
-function promoPc(ds,v){var p=(D.settings||{}).promo||{},pc=+p.pct||0;if(!(p.on&&pc>0&&pc<90&&Array.isArray(p.dates)&&p.dates.indexOf(ds)>=0))return 0;if(v&&Array.isArray(p.villas)&&p.villas.length&&p.villas.indexOf(v.id)<0)return 0;return pc}
+/* Promo (Pengaturan > Promo): bisa banyak. Tiap promo: diskon % di tanggal-tanggal pilihan, buat semua villa atau villa tertentu */
+function promoList(){var st=D.settings||{};if(!Array.isArray(st.promos)){st.promos=st.promo&&(st.promo.title||st.promo.pct)?[Object.assign({id:'p'+Date.now().toString(36)},st.promo)]:[];delete st.promo}return st.promos}
+function promoHits(p,ds,v){var pc=+p.pct||0;if(!(p.on&&pc>0&&pc<90&&Array.isArray(p.dates)&&p.dates.indexOf(ds)>=0))return 0;if(v&&Array.isArray(p.villas)&&p.villas.length&&p.villas.indexOf(v.id)<0)return 0;return pc}
+function promoPc(ds,v){var m=0;promoList().forEach(function(p){m=Math.max(m,promoHits(p,ds,v))});return m}
 function discOn(v,ds){return Math.max(villaDisc(v,ds),promoPc(ds,v))}
 function discActive(v){var pc=+v.disc||0;if(pc<=0||pc>=90)return 0;if(v.discTo&&v.discTo<todayDS())return 0;return pc}
 function rate(v,ds){var r=baseRate(v,ds),pc=discOn(v,ds);if(pc&&r.p)return{p:Math.round(r.p*(100-pc)/100/10000)*10000,t:r.t,o:r.p,pc:pc};return r}
@@ -116,14 +118,15 @@ function renderGuest(){
   f.addEventListener('submit',function(e){e.preventDefault();G.searched=true;search();var r=$('#res');if(r&&r.scrollIntoView)r.scrollIntoView({behavior:'smooth',block:'start'})});
   if(G.searched)search();
 }
-/* Banner promo (diatur di admin > Pengaturan > Promo). Berlaku sampai akhir hari tanggal "until" (WIB) */
-function promoDates(){var p=D.settings.promo||{},t=todayDS();return (Array.isArray(p.dates)?p.dates:[]).filter(function(d){return d>=t}).sort()}
-function promoEnd(){var p=D.settings.promo||{};if(!p.on||!p.title)return 0;var last=Array.isArray(p.dates)&&p.dates.length?p.dates.slice().sort().pop():'';var u=p.until||last;return u?Date.parse(u+'T23:59:59+07:00'):Infinity}
-function promoBanner(){var p=D.settings.promo||{},end=promoEnd();if(!end||end<Date.now())return '';
-  return '<section class="wrap promo"><div class="pb"><div class="pt"><span class="k">PROMO</span><b>'+esc(p.title)+'</b>'+(p.text?'<p>'+esc(p.text)+'</p>':'')+(promoDates().length&&+p.pct?'<div class="pdts"><span>Diskon '+(+p.pct)+'% '+(Array.isArray(p.villas)&&p.villas.length?'di villa pilihan (cek label % OFF) ':'')+'buat menginap malam:</span>'+promoDates().slice(0,20).map(function(d){return '<button type="button" data-pd="'+d+'">'+fmtD(d,{weekday:'short',day:'numeric',month:'short',year:undefined})+'</button>'}).join('')+'</div>':'')+(p.until?'<small>Berlaku sampai '+fmtD(p.until,{day:'numeric',month:'long',year:'numeric'})+'</small>':'')+'</div>'+(end<Infinity?'<div class="cd" id="pcd"></div>':'')+'</div></section>'}
+/* Banner promo di halaman depan: satu banner per promo yang aktif */
+function pDates(p){var t=todayDS();return (Array.isArray(p.dates)?p.dates:[]).filter(function(d){return d>=t}).sort()}
+function pEnd(p){if(!p.on||!p.title)return 0;var last=Array.isArray(p.dates)&&p.dates.length?p.dates.slice().sort().pop():'';var u=p.until||last;return u?Date.parse(u+'T23:59:59+07:00'):Infinity}
+function activePromos(){var now=Date.now();return promoList().filter(function(p){var e=pEnd(p);return e&&e>=now})}
+function promoBanner(){var ps=activePromos();if(!ps.length)return '';
+  return '<section class="wrap promo">'+ps.map(function(p,i){var end=pEnd(p),ds=pDates(p);return '<div class="pb"><div class="pt"><span class="k">PROMO</span><b>'+esc(p.title)+'</b>'+(p.text?'<p>'+esc(p.text)+'</p>':'')+(ds.length&&+p.pct?'<div class="pdts"><span>Diskon '+(+p.pct)+'% '+(Array.isArray(p.villas)&&p.villas.length?'di villa pilihan (cek label % OFF) ':'')+'buat menginap malam:</span>'+ds.slice(0,20).map(function(d){return '<button type="button" data-pd="'+d+'">'+fmtD(d,{weekday:'short',day:'numeric',month:'short',year:undefined})+'</button>'}).join('')+'</div>':'')+(p.until?'<small>Berlaku sampai '+fmtD(p.until,{day:'numeric',month:'long',year:'numeric'})+'</small>':'')+'</div>'+(end<Infinity?'<div class="cd" data-end="'+end+'"></div>':'')+'</div>'}).join('')+'</section>'}
 var PROMO_T=null;
-function startPromoTimer(){clearInterval(PROMO_T);var el=$('#pcd');if(!el)return;var end=promoEnd();function tick(){var ms=end-Date.now();if(!$('#pcd')){clearInterval(PROMO_T);return}if(ms<=0){el.innerHTML='<span><b>Selesai</b></span>';clearInterval(PROMO_T);return}
-  var d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5),m=Math.floor(ms%36e5/6e4),sc=Math.floor(ms%6e4/1e3);el.innerHTML=[[d,'Hari'],[h,'Jam'],[m,'Menit'],[sc,'Detik']].map(function(x){return '<span><b>'+String(x[0]).padStart(2,'0')+'</b>'+x[1]+'</span>'}).join('')}tick();PROMO_T=setInterval(tick,1000)}
+function startPromoTimer(){clearInterval(PROMO_T);if(!$$('.cd[data-end]').length)return;function tick(){var els=$$('.cd[data-end]');if(!els.length){clearInterval(PROMO_T);return}els.forEach(function(el){var ms=+el.dataset.end-Date.now();if(ms<=0){el.innerHTML='<span><b>Selesai</b></span>';return}
+  var d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5),m=Math.floor(ms%36e5/6e4),sc=Math.floor(ms%6e4/1e3);el.innerHTML=[[d,'Hari'],[h,'Jam'],[m,'Menit'],[sc,'Detik']].map(function(x){return '<span><b>'+String(x[0]).padStart(2,'0')+'</b>'+x[1]+'</span>'}).join('')})}tick();PROMO_T=setInterval(tick,1000)}
 function visVillas(){return D.villas.filter(function(v){return v&&v.name&&v.active!==false&&!v.status})}
 function quickDates(){var t=todayDS(),w=dow(t),sat=addDays(t,(6-w+7)%7||(w===6?0:7));if(w===6)sat=t;var fri=addDays(sat,-1);
   return [['Malam ini',t,addDays(t,1)],['Besok',addDays(t,1),addDays(t,2)],['Weekend ini',w===6||w===0?t:fri,addDays(sat,1)],['Weekend depan',addDays(fri,7),addDays(sat,8)]].map(function(q){if(q[1]<t)q[1]=t;if(q[2]<=q[1])q[2]=addDays(q[1],1);return q})}
@@ -720,15 +723,8 @@ function paneHol(p){
 var DEF_GUIDE=['Isi tanggal check-in, check-out & jumlah orang di puncakgovillas.com, lalu klik "Cari Villa".','Pilih villa yang cocok. Klik "Detail" buat lihat foto, fasilitas, kalender harga & tanggal yang masih kosong.','Klik "Booking via WhatsApp" (atau klik tanggal di kalender). Pesan ke admin otomatis keisi nama villa & tanggalnya.','Admin cek ulang ketersediaan dan kirim total harga final.','Bayar DP sesuai arahan admin buat ngunci tanggal. Pelunasan sesuai kesepakatan dengan admin.'];
 var DEF_FAQ=[{q:'Gimana cara booking villa?',a:'Cari villa sesuai tanggal & jumlah orang di website, lalu klik "Booking via WhatsApp". Admin kami bakal konfirmasi ketersediaan dan total harganya.'},{q:'Harga yang tampil di website udah final?',a:'Harga di website adalah estimasi per malam sesuai tanggal. Ketersediaan dan harga final dikonfirmasi admin lewat WhatsApp.'},{q:'Kenapa harga tiap malam beda-beda?',a:'Weekday (Minggu–Kamis malam) paling murah. Jumat malam & malam sebelum tanggal merah pakai harga semi weekend. Sabtu malam, Natal & Lebaran pakai harga weekend. Tahun baru & libur panjang pakai harga high season.'},{q:'Villa yang saya mau udah penuh, gimana?',a:'Chat admin aja. Kami punya banyak pilihan villa di Puncak dan bisa carikan villa lain yang mirip di tanggal kamu.'},{q:'Rombongan besar, ada villanya?',a:'Ada villa kapasitas besar untuk rombongan. Kalau masih kurang, bisa ambil 2 villa berdekatan, admin bantu carikan kombinasinya.'}];
 var RULES_TPL='Wajib menunjukkan KTP asli saat check-in, atau menitipkan deposit Rp500.000 (dikembalikan saat check-out)\nToleransi check-out 15 menit untuk ibadah\nSebelum jam check-in, mohon menunggu di luar area villa supaya villa bisa dibersihkan dengan maksimal\nCheck-in dini hari (sebelum jam check-in) dihitung menginap 2 malam\nDilarang keras membawa minuman beralkohol, narkoba, dan sejenisnya\nDilarang memasak makanan non-halal\nDilarang membawa hewan peliharaan, kecuali sudah mendapat izin admin\nMusik / karaoke maksimal sampai jam 23.00–24.00 (mengikuti aturan masing-masing villa)\nDilarang memakai sabun, sampo, tepung, atau bahan lain yang mengotori kolam renang. Denda Rp2.000.000\nWajib menjaga seluruh fasilitas villa. Fasilitas yang rusak atau hilang wajib diganti\nDenda Rp300.000–Rp1.000.000 untuk muntahan atau noda yang sulit dibersihkan\nKehilangan barang di luar tanggung jawab pengelola villa. Kunci pintu dan simpan barang berharga dengan aman';
-function setExtraPanels(s){var p=s.promo||{},faq=Array.isArray(s.faq)?s.faq:DEF_FAQ,guide=Array.isArray(s.guide)?s.guide:DEF_GUIDE;
-  return '<div class="panel"><h2>🏷️ Banner promo</h2><p class="hint">Tampil di halaman depan, di atas kolom pencarian, lengkap dengan hitung mundur. Diskon per villa diatur di <b>Edit villa</b>.</p><div class="fg">'+
-    '<label class="chk full"><input type="checkbox" id="prOn"'+(p.on?' checked':'')+'> Tampilkan banner promo</label>'+
-    '<label class="full">Judul promo<input id="prT" value="'+esc(p.title||'')+'" placeholder="Promo Akhir Tahun – diskon sampai 20%"></label>'+
-    '<label class="full"><span>Keterangan <span class="opt">(opsional)</span></span><input id="prX" value="'+esc(p.text||'')+'" placeholder="Cek villa berlabel % OFF di hasil pencarian"></label>'+
-    '<label><span>Diskon di tanggal promo (%) <span class="opt">(berlaku buat semua villa)</span></span><input id="prP" inputmode="numeric" value="'+(p.pct||'')+'" placeholder="misal 10"></label>'+
-    '<label><span>Banner tampil sampai <span class="opt">(kosong = sampai tanggal promo terakhir)</span></span><input id="prU" type="date" value="'+esc(p.until||'')+'"></label>'+
-    '<div class="full"><label style="margin-bottom:6px"><span>Tanggal promo <span class="opt">(klik tanggal buat pilih / batal. Diskon berlaku buat malam di tanggal itu)</span></span></label><div id="prCal"></div></div>'+
-    '<div class="full"><label style="margin-bottom:6px"><span>Villa yang ikut promo <span class="opt">(kalau nggak ada yang dicentang = semua villa ikut)</span></span></label><div id="prV"></div></div></div></div>'+
+function setExtraPanels(s){var faq=Array.isArray(s.faq)?s.faq:DEF_FAQ,guide=Array.isArray(s.guide)?s.guide:DEF_GUIDE;
+  return '<div class="panel"><div class="row" style="justify-content:space-between;align-items:center"><div><h2>🏷️ Promo</h2><p class="hint" style="margin:0">Bisa bikin beberapa promo sekaligus. Tiap promo: diskon % di tanggal pilihan, buat semua villa atau villa tertentu. Promo aktif tampil jadi banner di halaman depan. Kalau ada yang dobel di villa & tanggal yang sama, dipakai diskon paling besar.</p></div><button type="button" class="btn primary" id="prAdd">+ Tambah promo</button></div><div id="prL" style="margin-top:12px"></div></div>'+
    '<div class="panel"><h2>📋 Peraturan villa</h2><p class="hint">Tampil di halaman detail tiap villa & halaman Panduan Booking. Kosongin kalau belum mau ditampilin. Peraturan khusus per villa bisa ditambah di <b>Edit villa</b>.</p><div class="fg">'+
     '<label>Jam check-in<input data-s="checkin" value="'+esc(s.checkin===undefined?'14:00':s.checkin)+'" placeholder="14:00"></label><label>Jam check-out<input data-s="checkout" value="'+esc(s.checkout===undefined?'12:00':s.checkout)+'" placeholder="12:00"></label>'+
     '<label class="full"><span>Peraturan umum <span class="opt">(satu baris satu aturan)</span></span><textarea data-s="rules" id="ruT" rows="12" placeholder="Wajib menunjukkan KTP saat check-in">'+esc(s.rules===undefined?RULES_TPL:s.rules)+'</textarea></label>'+
@@ -738,28 +734,42 @@ function setExtraPanels(s){var p=s.promo||{},faq=Array.isArray(s.faq)?s.faq:DEF_
     '<h3 style="margin:16px 0 8px;font-size:15px">Pertanyaan yang sering ditanya</h3><div id="fqL">'+faq.map(function(f,i){return '<div class="fgq" style="border:1px solid var(--line);border-radius:12px;padding:10px;margin:0 0 8px"><input data-fq="'+i+'" value="'+esc(f.q)+'" placeholder="Pertanyaan" style="font-weight:700;margin-bottom:6px"><textarea data-fa="'+i+'" rows="2" placeholder="Jawaban">'+esc(f.a)+'</textarea><button type="button" class="btn sm danger" data-fd="'+i+'" style="margin-top:6px">Hapus</button></div>'}).join('')+'</div>'+
     '<button type="button" class="btn sm" id="fqAdd">+ Tambah pertanyaan</button></div>'}
 function bindExtraPanels(p,s){
-  function pr(){var o=s.promo||{};o.on=$('#prOn',p).checked;o.title=$('#prT',p).value.trim();o.text=$('#prX',p).value.trim();o.until=$('#prU',p).value;s.promo=o;markDirty()}
-  function pcal(){var o=s.promo||{},sel=Array.isArray(o.dates)?o.dates:[],t=todayDS(),ym=A.pm||t.slice(0,7),y=+ym.slice(0,4),mo=+ym.slice(5,7),first=ym+'-01',lead=(dow(first)+6)%7,h='';
+  function prHead(o){var c=$('#prL .prc.open',p);if(!c)return;var b=c.querySelector('.prh b'),sm=c.querySelector('.prh small'),bd=c.querySelector('.prh .badge');if(b)b.textContent=o.title||'Promo tanpa judul';if(sm)sm.textContent=(o.pct?o.pct+'% · ':'')+(pDates(o).length?pDates(o).length+' tanggal':'belum ada tanggal')+' · '+(Array.isArray(o.villas)&&o.villas.length?o.villas.length+' villa':'semua villa');if(bd){var e=pEnd(o);bd.textContent=!o.on?'Nonaktif':(e&&e<Date.now()?'Selesai':'Aktif');bd.className='badge'+(o.on&&!(e&&e<Date.now())?' on':'')}}
+  function prRender(){var ps=promoList(),t=todayDS(),box=$('#prL',p);
+    box.innerHTML=ps.length?ps.map(function(o,i){var open=A.pOpen===o.id,fut=pDates(o),e=pEnd(o),st=!o.on?['Nonaktif','']:(e&&e<Date.now()?['Selesai','']:['Aktif','on']);
+      return '<div class="prc'+(open?' open':'')+'"><div class="prh"><div><b>'+esc(o.title||'Promo tanpa judul')+'</b> <span class="badge '+st[1]+'">'+st[0]+'</span><br><small class="hint">'+(o.pct?o.pct+'% · ':'')+(fut.length?fut.length+' tanggal':'belum ada tanggal')+' · '+(Array.isArray(o.villas)&&o.villas.length?o.villas.length+' villa':'semua villa')+'</small></div><div class="row" style="gap:6px"><button type="button" class="btn sm" data-po="'+o.id+'">'+(open?'Tutup':'Atur')+'</button><button type="button" class="btn sm danger" data-pdel="'+o.id+'">Hapus</button></div></div>'+
+        (open?'<div class="fg" style="margin-top:12px"><label class="chk full"><input type="checkbox" data-pf="on"'+(o.on?' checked':'')+'> Aktifkan promo ini (tampil banner & diskon berlaku)</label>'+
+        '<label class="full">Judul promo<input data-pf="title" value="'+esc(o.title||'')+'" placeholder="Promo Hari Sepi – diskon 10%"></label>'+
+        '<label class="full"><span>Keterangan <span class="opt">(opsional)</span></span><input data-pf="text" value="'+esc(o.text||'')+'" placeholder="Cek villa berlabel % OFF di hasil pencarian"></label>'+
+        '<label><span>Diskon (%)</span><input data-pf="pct" inputmode="numeric" value="'+(o.pct||'')+'" placeholder="misal 10"></label>'+
+        '<label><span>Banner tampil sampai <span class="opt">(kosong = sampai tanggal promo terakhir)</span></span><input data-pf="until" type="date" value="'+esc(o.until||'')+'"></label>'+
+        '<div class="full"><label style="margin-bottom:6px"><span>Tanggal promo <span class="opt">(klik buat pilih / batal, diskon berlaku buat malam di tanggal itu)</span></span></label><div id="prCal"></div></div>'+
+        '<div class="full"><label style="margin-bottom:6px"><span>Villa yang ikut promo <span class="opt">(nggak ada yang dicentang = semua villa ikut)</span></span></label><div id="prV"></div></div></div>':'')+'</div>'}).join(''):'<p class="hint" style="margin:0">Belum ada promo. Klik <b>+ Tambah promo</b>.</p>';
+    $$('[data-po]',box).forEach(function(b){b.onclick=function(){A.pOpen=A.pOpen===b.dataset.po?null:b.dataset.po;A.pm=null;A.pvq='';prRender()}});
+    $$('[data-pdel]',box).forEach(function(b){b.onclick=function(){var o=ps.find(function(x){return x.id===b.dataset.pdel});if(!window.confirm('Hapus promo "'+((o&&o.title)||'tanpa judul')+'"?'))return;s.promos=ps.filter(function(x){return x.id!==b.dataset.pdel});markDirty();prRender()}});
+    var o=ps.find(function(x){return x.id===A.pOpen});if(!o)return;
+    $$('[data-pf]',box).forEach(function(inp){function upd(){var k=inp.dataset.pf;if(k==='on')o.on=inp.checked;else if(k==='pct'){var n=num(inp.value);if(n>0&&n<90)o.pct=n;else delete o.pct}else o[k]=inp.value.trim();markDirty();prHead(o)}
+      inp.addEventListener('input',upd);inp.addEventListener('change',upd)});
+    pcal(o);pvil(o)}
+  $('#prAdd',p).onclick=function(){var o={id:'p'+Date.now().toString(36),on:true,title:'',pct:10,dates:[],villas:[]};promoList().push(o);A.pOpen=o.id;A.pm=null;A.pvq='';markDirty();prRender()};
+  function pcal(o){prHead(o);var sel=Array.isArray(o.dates)?o.dates:[],t=todayDS(),ym=A.pm||t.slice(0,7),y=+ym.slice(0,4),mo=+ym.slice(5,7),first=ym+'-01',lead=(dow(first)+6)%7,h='';
     for(var i=0;i<lead;i++)h+='<span></span>';for(var d=first;d.slice(0,7)===ym;d=addDays(d,1)){var past=d<t,on=sel.indexOf(d)>=0,w=dow(d);h+='<button type="button" data-pdd="'+d+'"'+(past?' disabled':'')+' class="'+(on?'on':'')+(w===5||w===6?' we':'')+'">'+(+d.slice(8))+'</button>'}
     var fut=sel.filter(function(d){return d>=t}).sort();
     $('#prCal',p).innerHTML='<div class="pcal"><div class="pch"><button type="button" data-pmm="-1"'+(ym<=t.slice(0,7)?' disabled':'')+'>‹</button><b>'+new Date(Date.UTC(y,mo-1,1)).toLocaleDateString('id-ID',{month:'long',year:'numeric',timeZone:'UTC'})+'</b><button type="button" data-pmm="1">›</button></div><div class="pcg"><i>Sen</i><i>Sel</i><i>Rab</i><i>Kam</i><i>Jum</i><i>Sab</i><i>Min</i>'+h+'</div></div>'+
       '<p class="hint" style="margin:8px 0 0">'+(fut.length?'<b>'+fut.length+' tanggal dipilih:</b> '+fut.map(function(d){return fmtD(d,{day:'numeric',month:'short',year:undefined})}).join(', ')+' <button type="button" class="btn sm" id="pdClr">Hapus semua</button>':'Belum ada tanggal promo dipilih.')+'</p>';
-    $$('[data-pdd]',p).forEach(function(b){b.onclick=function(){var o=s.promo||(s.promo={}),a=Array.isArray(o.dates)?o.dates.filter(function(d){return d>=t}):[],d=b.dataset.pdd,i=a.indexOf(d);if(i>=0)a.splice(i,1);else a.push(d);o.dates=a.sort();markDirty();pcal()}});
-    $$('[data-pmm]',p).forEach(function(b){b.onclick=function(){var nd=new Date(Date.UTC(y,mo-1+ +b.dataset.pmm,1));A.pm=nd.toISOString().slice(0,7);pcal()}});
-    var c=$('#pdClr',p);if(c)c.onclick=function(){(s.promo||{}).dates=[];markDirty();pcal()}}
-  pcal();
-  function pvil(){var o=s.promo||{},sel=Array.isArray(o.villas)?o.villas:[],q=(A.pvq||'').toLowerCase(),vs=D.villas.filter(function(v){return v&&v.name&&!v.status}).sort(function(a,b){return a.name.localeCompare(b.name)});
+    $$('[data-pdd]',p).forEach(function(b){b.onclick=function(){var a=Array.isArray(o.dates)?o.dates.filter(function(d){return d>=t}):[],d=b.dataset.pdd,i=a.indexOf(d);if(i>=0)a.splice(i,1);else a.push(d);o.dates=a.sort();markDirty();pcal(o)}});
+    $$('[data-pmm]',p).forEach(function(b){b.onclick=function(){var nd=new Date(Date.UTC(y,mo-1+ +b.dataset.pmm,1));A.pm=nd.toISOString().slice(0,7);pcal(o)}});
+    var c=$('#pdClr',p);if(c)c.onclick=function(){o.dates=[];markDirty();pcal(o)}}
+  function pvil(o){prHead(o);var sel=Array.isArray(o.villas)?o.villas:[],q=(A.pvq||'').toLowerCase(),vs=D.villas.filter(function(v){return v&&v.name&&!v.status}).sort(function(a,b){return a.name.localeCompare(b.name)});
     var shown=vs.filter(function(v){return !q||v.name.toLowerCase().indexOf(q)>=0||String(v.location||'').toLowerCase().indexOf(q)>=0});
     $('#prV',p).innerHTML='<div class="pvb"><div class="row" style="gap:8px;margin-bottom:8px"><input id="pvq" type="search" placeholder="🔍 Cari villa…" value="'+esc(A.pvq||'')+'" style="flex:1;min-width:160px"><button type="button" class="btn sm" id="pvAll">Centang yang tampil</button><button type="button" class="btn sm" id="pvNone">Kosongkan</button></div>'+
       '<p class="hint" style="margin:0 0 6px"><b>'+(sel.length?sel.length+' villa dipilih':'Semua villa ikut promo')+'</b></p><div class="pvl">'+shown.map(function(v){return '<label class="chk"><input type="checkbox" data-pv="'+v.id+'"'+(sel.indexOf(v.id)>=0?' checked':'')+'> '+esc(v.name)+(v.active===false?' <span class="opt">(disembunyikan)</span>':'')+'</label>'}).join('')+'</div></div>';
-    function setSel(a){var o=s.promo||(s.promo={});o.villas=a;markDirty();pvil()}
+    function setSel(a){o.villas=a;markDirty();pvil(o)}
     $$('[data-pv]',p).forEach(function(c){c.onchange=function(){var a=sel.slice(),i=a.indexOf(c.dataset.pv);if(c.checked&&i<0)a.push(c.dataset.pv);if(!c.checked&&i>=0)a.splice(i,1);setSel(a)}});
     $('#pvAll',p).onclick=function(){var a=sel.slice();shown.forEach(function(v){if(a.indexOf(v.id)<0)a.push(v.id)});setSel(a)};
     $('#pvNone',p).onclick=function(){setSel([])};
-    var qi=$('#pvq',p);qi.oninput=function(){A.pvq=qi.value;var pos=qi.selectionStart;pvil();var n=$('#pvq',p);n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
-  pvil();
-  $('#prP',p).addEventListener('input',function(){var n=num(this.value);var o=s.promo||(s.promo={});if(n>0&&n<90)o.pct=n;else delete o.pct;markDirty()});
-  ['#prOn','#prT','#prX','#prU'].forEach(function(id){$(id,p).addEventListener('input',pr);$(id,p).addEventListener('change',pr)});
+    var qi=$('#pvq',p);qi.oninput=function(){A.pvq=qi.value;var pos=qi.selectionStart;pvil(o);var n=$('#pvq',p);n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
+  prRender();
   $('#ruTpl',p).onclick=function(){var t=$('#ruT',p);if(t.value.trim()&&!window.confirm('Ganti isi peraturan sekarang dengan peraturan standar?'))return;t.value=RULES_TPL;s.rules=RULES_TPL;markDirty()};
   $('#guT',p).addEventListener('input',function(){s.guide=this.value.split('\n').map(function(x){return x.trim()}).filter(Boolean);markDirty()});
   function faqArr(){if(!Array.isArray(s.faq))s.faq=DEF_FAQ.map(function(f){return {q:f.q,a:f.a}});return s.faq}
