@@ -266,3 +266,6 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;
 .pcg{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.pcg i{font-style:normal;font-size:11px;color:var(--muted);text-align:center;font-weight:700}
 .pcg button{border:1px solid var(--line);background:#fff;border-radius:8px;height:36px;font:inherit;font-weight:700;cursor:pointer}.pcg button.we{color:#b4570a}
 .pcg button.on{background:#d93a2b;border-color:#d93a2b;color:#fff}.pcg button:disabled{opacity:.3;cursor:default}
+.pvb{border:1px solid var(--line);border-radius:14px;padding:10px;background:#fff}
+.pvl{max-height:260px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:2px 12px}
+.pvl label.chk{font-weight:500;font-size:14px;padding:5px 2px}
