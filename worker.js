@@ -7,6 +7,7 @@ import * as admins from './functions/api/admins.js';
 import * as log from './functions/api/log.js';
 import * as priv from './functions/api/private.js';
 import * as dupes from './functions/api/dupes.js';
+import * as bot from './functions/api/bot.js';
 import { cleanRejectedPhotos } from './lib/cleanup.js';
 import { handleSeo, loadSite, homeSeoBlock, HOME_LD } from './lib/seo.js';
 
@@ -23,7 +24,9 @@ async function hfProxy(request, url, ctx) {
   return res;
 }
 
-const ROUTES = { '/api/data': data, '/api/login': login, '/api/photo': photo, '/api/admins': admins, '/api/log': log, '/api/private': priv, '/api/dupes': dupes };
+const ROUTES = { '/api/data': data, '/api/login': login, '/api/photo': photo, '/api/admins': admins, '/api/log': log, '/api/private': priv, '/api/dupes': dupes,
+  // Karyawan AI (robot PDF villa), login pakai header x-bot-key
+  '/api/bot/photo': { onRequestPost: bot.photoPost }, '/api/bot/villa': { onRequestGet: bot.villaGet, onRequestPost: bot.villaPost } };
 
 function pick(mod, method) {
   const name = 'onRequest' + method.charAt(0) + method.slice(1).toLowerCase();

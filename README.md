@@ -67,3 +67,9 @@ Kalau lebih dari `settings.calDays` hari (default 6), muncul peringatan di atas 
 ## Pengelola villa & batasan admin
 - `villa.ownerAcc` = akun (admin/staff atau mitra) yang pegang villa. Pemilik bisa ganti langsung dari daftar villa.
 - Akun admin (role `staff`) cuma bisa ngubah tanggal terisi villa yang `ownerAcc`-nya dia (dicek di server: `limitStaff` di functions/api/data.js) dan nggak bisa ganti pengelola. Sinkron dari Pembukuan cuma buat pemilik.
+
+## Karyawan AI: PDF villa otomatis (`functions/api/bot.js`)
+Robot yang ngecek folder Drive "Foto Villa dan Video Villa/1. Siap PDF", bikin PDF villa, lalu nambahin villanya ke website.
+- Login pakai header `x-bot-key` = secret `BOT_KEY` di Cloudflare (min. 24 karakter, beda dari `ADMIN_PASSWORD`). Kalau `BOT_KEY` belum diisi, API ini mati.
+- `POST /api/bot/photo` upload foto · `GET /api/bot/villa?name=` cek villa udah ada · `POST /api/bot/villa` tambah villa baru.
+- Robot cuma bisa **nambah** villa baru, selalu `status: "pending"` (nggak tampil ke tamu) → pemilik setujui di tab **Verifikasi**. Nama yang udah ada ditolak (409). Nggak bisa ngubah/hapus villa lain.
