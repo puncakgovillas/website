@@ -34,6 +34,8 @@ def num_before(s, word):
 
 def call(method, path, body=None, ctype=None):
     req = urllib.request.Request(BASE + path, data=body, method=method)
+    # Cloudflare (Bot Fight) nolak User-Agent bawaan Python -> 403, jadi pakai nama yang jelas
+    req.add_header("User-Agent", "PuncakGoVillas-KaryawanAI/1.0 (+https://puncakgovillas.com)")
     if ctype:
         req.add_header("content-type", ctype)
     if os.environ.get("BOT_KEY"):
