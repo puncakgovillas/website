@@ -26,7 +26,7 @@ async function hfProxy(request, url, ctx) {
 
 const ROUTES = { '/api/data': data, '/api/login': login, '/api/photo': photo, '/api/admins': admins, '/api/log': log, '/api/private': priv, '/api/dupes': dupes,
   // Karyawan AI (robot PDF villa), login pakai header x-bot-key
-  '/api/bot/photo': { onRequestPost: bot.photoPost }, '/api/bot/villa': { onRequestGet: bot.villaGet, onRequestPost: bot.villaPost } };
+  '/api/bot/photo': { onRequestPost: bot.photoPost }, '/api/bot/villa': { onRequestGet: bot.villaGet, onRequestPost: bot.villaPost, onRequestPut: bot.villaPut } };
 
 function pick(mod, method) {
   const name = 'onRequest' + method.charAt(0) + method.slice(1).toLowerCase();

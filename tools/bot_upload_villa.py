@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Karyawan AI PDF Villa: kirim villa baru ke puncakgovillas.com (status "pending", nunggu verifikasi).
 
-Pakai:  python3 bot_upload_villa.py --pdf "Villa CH 65 4 Kamar - PGV.pdf" --config config.json [--dry-run]
+Pakai:  python3 bot_upload_villa.py --pdf "Villa CH 65 4 Kamar - PGV.pdf" --config config.json [--update] [--dry-run]
+
+- Villa belum ada di website -> ditambah (status "pending", nunggu verifikasi).
+- Villa udah ada -> dilewati, KECUALI pakai --update: fotonya diganti dengan halaman foto PDF ini
+  (harga/jadwal/status nggak disentuh).
 
 - config.json = config yang sama dengan build_villa_pdf.py (skill pdf-villa-pgv):
   name, lokasi, weekday, weekend, kapasitas ("40 Orang, 4 Kamar"), fasilitas[]; opsional semi, kamar_mandi, desc.
@@ -55,6 +59,7 @@ def main():
     ap.add_argument("--pdf", required=True)
     ap.add_argument("--config", required=True)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--update", action="store_true", help="kalau villa udah ada, ganti fotonya")
     a = ap.parse_args()
     cfg = json.load(open(a.config, encoding="utf-8"))
     name = cfg["name"].strip()
@@ -73,7 +78,7 @@ def main():
     }
 
     tmp = tempfile.mkdtemp(prefix="pgvweb_")
-    subprocess.run(["pdftoppm", "-jpeg", "-jpegopt", "quality=82", "-scale-to-x", "1600", "-scale-to-y", "900",
+    subprocess.run(["pdftoppm", "-jpeg", "-jpegopt", "quality=82", "-scale-to-x", "1280", "-scale-to-y", "720",
                     a.pdf, os.path.join(tmp, "p")], check=True)
     pages = sorted(glob.glob(os.path.join(tmp, "p-*.jpg")))[:-1]  # buang halaman spek terakhir
     if not pages:
@@ -86,7 +91,8 @@ def main():
     if st != 200:
         print(json.dumps({"ok": False, "step": "cek", "status": st, "resp": r}))
         sys.exit(2)
-    if r.get("exists"):
+    existing = r if r.get("exists") else None
+    if existing and not a.update:
         print(json.dumps({"ok": False, "skipped": "sudah ada di website", "id": r.get("id"), "status": r.get("status")}))
         return
 
@@ -97,6 +103,12 @@ def main():
             print(json.dumps({"ok": False, "step": "foto", "status": st, "resp": r}))
             sys.exit(2)
         photos.append(r["url"])
+    if existing:
+        st, r = call("PUT", "/api/bot/villa", json.dumps({"id": existing["id"], "photos": photos}).encode(), "application/json")
+        print(json.dumps({"ok": st == 200, "updated": True, "status": st, "resp": r, "photos": len(photos)}, ensure_ascii=False))
+        if st != 200:
+            sys.exit(2)
+        return
     villa["photos"] = photos
     st, r = call("POST", "/api/bot/villa", json.dumps(villa).encode(), "application/json")
     print(json.dumps({"ok": st == 200, "status": st, "resp": r, "photos": len(photos)}, ensure_ascii=False))
