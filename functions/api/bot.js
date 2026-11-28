@@ -1,6 +1,7 @@
 // API khusus "Karyawan AI" (robot otomatis): tambah villa baru dari PDF villa di Google Drive.
 // Login pakai header `x-bot-key` = secret BOT_KEY di Cloudflare (beda dari ADMIN_PASSWORD).
-// Robot cuma bisa: upload foto & TAMBAH villa baru dengan status "pending" (belum tampil ke tamu).
+// Robot cuma bisa: upload foto, TAMBAH villa baru dengan status "pending" (belum tampil ke tamu),
+// dan GANTI FOTO villa yang udah ada (PUT). Nggak bisa hapus villa / ubah harga, jadwal, status.
 // Villa baru muncul di tab Verifikasi admin; pemilik yang setujui sebelum tampil.
 import { DATA_KEY, json, needBucket } from '../../lib/lib.js';
 import { addLog } from '../../lib/log.js';
@@ -50,7 +51,7 @@ export async function villaGet({ request, env }) {
   const obj = await env.BUCKET.get(DATA_KEY);
   const villas = obj ? (await obj.json()).villas || [] : [];
   const v = villas.find((x) => nameKey(x.name) === k);
-  return json(v ? { exists: true, id: v.id, status: v.status || 'ok' } : { exists: false });
+  return json(v ? { exists: true, id: v.id, name: v.name, status: v.status || 'ok', photos: (v.photos || []).length, photosAt: v.botPhotosAt || v.createdAt || '' } : { exists: false });
 }
 
 // POST /api/bot/villa  { name, location, bedrooms, bathrooms, capMax, priceWeekday, priceSemi, priceWeekend, facilities[], desc, photos[] }
@@ -96,6 +97,41 @@ export async function villaPost({ request, env }) {
     await env.BUCKET.put(`backups/${stamp}.json`, JSON.stringify(current), { httpMetadata: { contentType: 'application/json' } });
     await addLog(env, BOT, [{ t: 'villa', villa: name, text: 'Tambah villa baru (otomatis dari PDF, nunggu verifikasi): ' + name }]);
     return json({ ok: true, id: villa.id, rev: next.rev });
+  }
+  return json({ error: 'Lagi ramai yang nyimpan, coba lagi sebentar.' }, 503);
+}
+
+// PUT /api/bot/villa  { id, photos[] } -> ganti foto villa yang udah ada (foto/PDF baru di Drive).
+// Cuma foto yang diganti; harga, fasilitas, jadwal, status tayang nggak disentuh. Foto lama nggak dihapus
+// (bisa dibersihin admin lewat "foto nganggur"), jadi selalu bisa dibalikin dari backups/.
+export async function villaPut({ request, env }) {
+  const miss = needBucket(env) || checkBot(request, env);
+  if (miss) return miss;
+  let b;
+  try { b = await request.json(); } catch { return json({ error: 'Data tidak valid.' }, 400); }
+  const id = str(b && b.id, 20);
+  const photos = (Array.isArray(b && b.photos) ? b.photos : []).filter((p) => /^\/photos\/[a-z0-9]+\.(jpg|png|webp)$/.test(p)).slice(0, 80);
+  if (!id) return json({ error: 'id villa kosong.' }, 400);
+  if (!photos.length) return json({ error: 'Minimal 1 foto.' }, 400);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const obj = await env.BUCKET.get(DATA_KEY);
+    if (!obj) return json({ error: 'data.json belum ada.' }, 500);
+    const current = await obj.json();
+    const villas = current.villas || [];
+    const i = villas.findIndex((x) => x.id === id);
+    if (i < 0) return json({ error: 'Villa nggak ketemu.' }, 404);
+    if (villas[i].status === 'rejected') return json({ error: 'Villa ini ditolak admin, nggak diupdate.' }, 409);
+    const nowIso = new Date().toISOString();
+    const v = { ...villas[i], photos, updatedBy: BOT.name, updatedAt: nowIso, botPhotosAt: nowIso };
+    const next = { ...current, villas: villas.map((x, k) => (k === i ? v : x)), rev: (current.rev || 0) + 1, savedAt: nowIso, savedBy: BOT.name };
+    const put = await env.BUCKET.put(DATA_KEY, JSON.stringify(next), {
+      onlyIf: { etagMatches: obj.etag },
+      httpMetadata: { contentType: 'application/json' },
+    });
+    if (!put) continue;
+    await env.BUCKET.put(`backups/${nowIso.slice(0, 13)}.json`, JSON.stringify(current), { httpMetadata: { contentType: 'application/json' } });
+    await addLog(env, BOT, [{ t: 'villa', villa: v.name, text: v.name + ': ganti foto otomatis dari PDF baru (' + photos.length + ' foto)' }]);
+    return json({ ok: true, id, rev: next.rev });
   }
   return json({ error: 'Lagi ramai yang nyimpan, coba lagi sebentar.' }, 503);
 }
