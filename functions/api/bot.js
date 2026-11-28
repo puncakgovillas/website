@@ -16,7 +16,7 @@ function sameStr(a, b) {
   return d === 0;
 }
 function checkBot(request, env) {
-  if (!env.BOT_KEY || env.BOT_KEY.length < 24) return json({ error: 'BOT_KEY belum diatur di Cloudflare.' }, 503);
+  if (!env.BOT_KEY || env.BOT_KEY.length < 12) return json({ error: 'BOT_KEY belum diatur di Cloudflare.' }, 503);
   if (!sameStr(request.headers.get('x-bot-key') || '', env.BOT_KEY)) return json({ error: 'Kunci robot salah.' }, 401);
   return null;
 }
